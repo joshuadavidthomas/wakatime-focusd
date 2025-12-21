@@ -11,12 +11,9 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
 use zbus::Connection;
 
-/// DBus interface for login1 Manager.
+/// DBus service and path for login1.
 const LOGIND_SERVICE: &str = "org.freedesktop.login1";
 const LOGIND_PATH: &str = "/org/freedesktop/login1";
-const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
-const SESSION_INTERFACE: &str = "org.freedesktop.login1.Session";
-const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 
 /// Idle monitor that polls systemd-logind for idle state.
 pub struct IdleMonitor {
@@ -134,7 +131,24 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     // First try XDG_SESSION_ID if available
     if let Ok(session_id) = env::var("XDG_SESSION_ID") {
         debug!("Using XDG_SESSION_ID: {}", session_id);
-        return get_session_by_id(conn, &session_id).await;
+
+        const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
+
+        let proxy = zbus::Proxy::new(
+            conn,
+            LOGIND_SERVICE,
+            LOGIND_PATH,
+            MANAGER_INTERFACE,
+        )
+        .await
+        .context("Failed to create Manager proxy")?;
+
+        let path: zbus::zvariant::OwnedObjectPath = proxy
+            .call("GetSession", &(&session_id,))
+            .await
+            .context("GetSession call failed")?;
+
+        return Ok(path.to_string());
     }
 
     // Fall back to getting sessions for current user
@@ -157,25 +171,6 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     anyhow::bail!("Could not resolve session path. Set XDG_SESSION_ID or ensure logind session is available.")
 }
 
-/// Get session object path by session ID via Manager.GetSession.
-async fn get_session_by_id(conn: &Connection, session_id: &str) -> Result<String> {
-    let proxy = zbus::Proxy::new(
-        conn,
-        LOGIND_SERVICE,
-        LOGIND_PATH,
-        MANAGER_INTERFACE,
-    )
-    .await
-    .context("Failed to create Manager proxy")?;
-
-    let path: zbus::zvariant::OwnedObjectPath = proxy
-        .call("GetSession", &(session_id,))
-        .await
-        .context("GetSession call failed")?;
-
-    Ok(path.to_string())
-}
-
 /// Check if a session path exists by trying to get IdleHint.
 async fn check_session_exists(conn: &Connection, path: &str) -> bool {
     get_idle_hint(conn, path).await.is_ok()
@@ -183,6 +178,9 @@ async fn check_session_exists(conn: &Connection, path: &str) -> bool {
 
 /// Get the IdleHint property from a session.
 async fn get_idle_hint(conn: &Connection, session_path: &str) -> Result<bool> {
+    const SESSION_INTERFACE: &str = "org.freedesktop.login1.Session";
+    const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
+
     let proxy = zbus::Proxy::new(
         conn,
         LOGIND_SERVICE,

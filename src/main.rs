@@ -18,6 +18,7 @@ use crate::wakatime::WakaTimeClient;
 
 use anyhow::{Context, Result};
 use clap::Parser;
+use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,7 +71,9 @@ async fn main() -> Result<()> {
     );
 
     // Check environment
-    if !hyprland_ipc::is_available() {
+    let hyprland_available = env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
+        && env::var("XDG_RUNTIME_DIR").is_ok();
+    if !hyprland_available {
         error!("Hyprland environment not detected.");
         error!("Required environment variables:");
         for diag in hyprland_ipc::get_diagnostics() {

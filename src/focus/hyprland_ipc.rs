@@ -14,12 +14,6 @@ use tracing::{debug, info, trace, warn};
 /// Backend identifier for Hyprland IPC.
 pub const BACKEND_NAME: &str = "hyprland-ipc";
 
-/// Maximum reconnection backoff duration.
-const MAX_BACKOFF: Duration = Duration::from_secs(5);
-
-/// Initial reconnection backoff duration.
-const INITIAL_BACKOFF: Duration = Duration::from_millis(250);
-
 /// Get the path to Hyprland's socket2.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
@@ -146,6 +140,9 @@ impl FocusState {
 /// This function handles reconnection with exponential backoff.
 /// It sends FocusEvents through the provided channel.
 pub async fn run_focus_stream(tx: mpsc::Sender<FocusEvent>) -> Result<(), FocusError> {
+    const MAX_BACKOFF: Duration = Duration::from_secs(5);
+    const INITIAL_BACKOFF: Duration = Duration::from_millis(250);
+
     let mut backoff = INITIAL_BACKOFF;
 
     loop {
@@ -210,11 +207,6 @@ async fn connect_and_stream(tx: &mpsc::Sender<FocusEvent>) -> Result<(), FocusEr
             }
         }
     }
-}
-
-/// Check if Hyprland environment is available.
-pub fn is_available() -> bool {
-    env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() && env::var("XDG_RUNTIME_DIR").is_ok()
 }
 
 /// Get diagnostic information about the Hyprland environment.

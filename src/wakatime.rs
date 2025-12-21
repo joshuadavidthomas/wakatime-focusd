@@ -10,14 +10,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use tokio::process::Command;
 use tracing::{debug, error, info, trace, warn};
 
-/// Plugin identifier for WakaTime.
-const PLUGIN_NAME: &str = "wakatime-focusd";
-
-/// Get the current version from Cargo.toml.
-pub fn version() -> &'static str {
-    env!("CARGO_PKG_VERSION")
-}
-
 /// Rate limiter for error logging.
 static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
 const ERROR_LOG_RATE_LIMIT: u32 = 10; // Log every Nth error after initial burst
@@ -39,6 +31,9 @@ pub struct WakaTimeClient {
 }
 
 impl WakaTimeClient {
+    const PLUGIN_NAME: &str = env!("CARGO_PKG_NAME");
+    const VERSION: &str = env!("CARGO_PKG_VERSION");
+
     /// Create a new WakaTime client from config.
     pub fn from_config(config: &Config) -> Result<Self> {
         let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_ref())?;
@@ -118,7 +113,7 @@ impl WakaTimeClient {
             "--entity".to_string(),
             entity.to_string(),
             "--plugin".to_string(),
-            format!("{}/{}", PLUGIN_NAME, version()),
+            format!("{}/{}", Self::PLUGIN_NAME, Self::VERSION),
             "--category".to_string(),
             self.category.clone(),
         ];
@@ -182,13 +177,6 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_version() {
-        let v = version();
-        assert!(!v.is_empty());
-        assert!(v.contains('.')); // Should be semver like "0.1.0"
-    }
 
     #[test]
     fn test_build_args() {
