@@ -154,26 +154,19 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     // Fall back to getting sessions for current user
     debug!("XDG_SESSION_ID not set, trying to find current session");
 
-    // Try "self" or "auto" session
+    // Try "self" session - probe by reading IdleHint
     let self_path = format!("{}/session/self", LOGIND_PATH);
-
-    // Check if self path works by trying to read a property
-    if check_session_exists(conn, &self_path).await {
+    if get_idle_hint(conn, &self_path).await.is_ok() {
         return Ok(self_path);
     }
 
-    // Try auto
+    // Try "auto" session
     let auto_path = format!("{}/session/auto", LOGIND_PATH);
-    if check_session_exists(conn, &auto_path).await {
+    if get_idle_hint(conn, &auto_path).await.is_ok() {
         return Ok(auto_path);
     }
 
     anyhow::bail!("Could not resolve session path. Set XDG_SESSION_ID or ensure logind session is available.")
-}
-
-/// Check if a session path exists by trying to get IdleHint.
-async fn check_session_exists(conn: &Connection, path: &str) -> bool {
-    get_idle_hint(conn, path).await.is_ok()
 }
 
 /// Get the IdleHint property from a session.
