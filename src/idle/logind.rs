@@ -43,17 +43,12 @@ impl IdleMonitor {
     /// Check if the session is currently idle.
     ///
     /// Returns the cached idle state. Use `poll_idle_state` to refresh.
+    /// Returns false if idle monitoring is disabled.
     pub fn is_idle(&self) -> bool {
         if !self.enabled.load(Ordering::Relaxed) {
             return false; // If disabled, assume not idle
         }
         self.idle_hint.load(Ordering::Relaxed)
-    }
-
-    /// Check if idle monitoring is enabled.
-    #[allow(dead_code)]
-    pub fn is_enabled(&self) -> bool {
-        self.enabled.load(Ordering::Relaxed)
     }
 
     /// Initialize the monitor by resolving the session path.
@@ -217,15 +212,18 @@ mod tests {
     fn test_idle_monitor_default_state() {
         let monitor = IdleMonitor::new();
         assert!(!monitor.is_idle());
-        assert!(monitor.is_enabled());
     }
 
     #[test]
     fn test_idle_monitor_disable() {
         let monitor = IdleMonitor::new();
+        // Set idle hint to true
+        monitor.idle_hint.store(true, Ordering::Relaxed);
+        assert!(monitor.is_idle());
+
+        // After disable, is_idle returns false regardless of hint
         monitor.disable();
-        assert!(!monitor.is_enabled());
-        assert!(!monitor.is_idle()); // Returns false when disabled
+        assert!(!monitor.is_idle());
     }
 
     #[test]

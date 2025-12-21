@@ -175,7 +175,7 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
 /// Run the daemon event loop.
 async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
     // Initialize WakaTime client
-    let mut wakatime_client = WakaTimeClient::from_config(&config)
+    let wakatime_client = WakaTimeClient::from_config(&config)
         .context("Failed to initialize WakaTime client")?;
 
     // Initialize idle monitor
@@ -212,7 +212,7 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
                             &config,
                             &idle_monitor,
                             &mut throttle,
-                            &mut wakatime_client,
+                            &wakatime_client,
                             print_events,
                         ).await;
                     }
@@ -256,7 +256,7 @@ async fn handle_focus_event(
     config: &Config,
     idle_monitor: &IdleMonitor,
     throttle: &mut HeartbeatThrottle,
-    wakatime_client: &mut WakaTimeClient,
+    wakatime_client: &WakaTimeClient,
     print_events: bool,
 ) {
     // Print event if requested

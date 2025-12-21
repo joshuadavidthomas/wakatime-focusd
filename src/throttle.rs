@@ -95,19 +95,6 @@ impl HeartbeatThrottle {
     pub fn last_entity(&self) -> Option<&str> {
         self.last_sent_entity.as_deref()
     }
-
-    /// Get time since last heartbeat was sent, if any.
-    #[allow(dead_code)]
-    pub fn time_since_last_send(&self) -> Option<Duration> {
-        self.last_sent_at.map(|t| t.elapsed())
-    }
-
-    /// Reset the throttle state.
-    #[allow(dead_code)]
-    pub fn reset(&mut self) {
-        self.last_sent_entity = None;
-        self.last_sent_at = None;
-    }
 }
 
 #[cfg(test)]
@@ -170,30 +157,5 @@ mod tests {
 
         // Back to firefox - should send because entity changed
         assert_eq!(throttle.should_send("firefox"), ThrottleDecision::Send);
-    }
-
-    #[test]
-    fn test_reset() {
-        let mut throttle = HeartbeatThrottle::new(120);
-
-        throttle.record_sent("firefox");
-        assert!(throttle.last_entity().is_some());
-
-        throttle.reset();
-        assert!(throttle.last_entity().is_none());
-        assert!(throttle.time_since_last_send().is_none());
-    }
-
-    #[test]
-    fn test_time_since_last_send() {
-        let mut throttle = HeartbeatThrottle::new(120);
-
-        assert!(throttle.time_since_last_send().is_none());
-
-        throttle.record_sent("firefox");
-        sleep(Duration::from_millis(10));
-
-        let elapsed = throttle.time_since_last_send().unwrap();
-        assert!(elapsed >= Duration::from_millis(10));
     }
 }

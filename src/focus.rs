@@ -1,19 +1,14 @@
 //! Focus detection module.
 //!
-//! Provides the FocusEvent model and FocusProvider trait for backend implementations.
+//! Provides the FocusEvent model for backend implementations.
 
 pub mod hyprland_ipc;
 
-use std::time::Instant;
 use thiserror::Error;
 
 /// A normalized focus event from any backend.
 #[derive(Debug, Clone)]
 pub struct FocusEvent {
-    /// Timestamp when the focus change was detected.
-    #[allow(dead_code)]
-    pub ts: Instant,
-
     /// Backend identifier (e.g., "hyprland-ipc").
     pub backend: &'static str,
 
@@ -28,7 +23,7 @@ pub struct FocusEvent {
 }
 
 impl FocusEvent {
-    /// Create a new focus event with the current timestamp.
+    /// Create a new focus event.
     pub fn new(
         backend: &'static str,
         window_id: Option<String>,
@@ -36,7 +31,6 @@ impl FocusEvent {
         title: Option<String>,
     ) -> Self {
         Self {
-            ts: Instant::now(),
             backend,
             window_id,
             app_class,
@@ -67,8 +61,4 @@ pub enum FocusError {
 
     #[error("Socket path not found: {0}")]
     SocketNotFound(String),
-
-    #[error("Parse error: {0}")]
-    #[allow(dead_code)]
-    ParseError(String),
 }

@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::{Duration, Instant};
 use tokio::process::Command;
 use tracing::{debug, error, info, trace, warn};
 
@@ -37,12 +36,6 @@ pub struct WakaTimeClient {
 
     /// Dry run mode.
     dry_run: bool,
-
-    /// Last successful send time (for health checks).
-    last_success: Option<Instant>,
-
-    /// Count of consecutive failures.
-    consecutive_failures: u32,
 }
 
 impl WakaTimeClient {
@@ -56,15 +49,13 @@ impl WakaTimeClient {
             config_path: config.wakatime_config_path.clone(),
             category: config.category.clone(),
             dry_run: config.dry_run,
-            last_success: None,
-            consecutive_failures: 0,
         })
     }
 
     /// Send a heartbeat for the given entity.
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
-    pub async fn send_heartbeat(&mut self, entity: &str) -> Result<()> {
+    pub async fn send_heartbeat(&self, entity: &str) -> Result<()> {
         let args = self.build_args(entity);
 
         if self.dry_run {
@@ -95,11 +86,8 @@ impl WakaTimeClient {
 
         if result.status.success() {
             trace!("wakatime-cli succeeded");
-            self.last_success = Some(Instant::now());
-            self.consecutive_failures = 0;
             Ok(())
         } else {
-            self.consecutive_failures += 1;
             let stderr = String::from_utf8_lossy(&result.stderr);
 
             // Rate-limit error logging
@@ -141,24 +129,6 @@ impl WakaTimeClient {
         }
 
         args
-    }
-
-    /// Get time since last successful heartbeat.
-    #[allow(dead_code)]
-    pub fn time_since_last_success(&self) -> Option<Duration> {
-        self.last_success.map(|t| t.elapsed())
-    }
-
-    /// Get count of consecutive failures.
-    #[allow(dead_code)]
-    pub fn consecutive_failures(&self) -> u32 {
-        self.consecutive_failures
-    }
-
-    /// Check if client appears healthy.
-    #[allow(dead_code)]
-    pub fn is_healthy(&self) -> bool {
-        self.consecutive_failures < 10
     }
 }
 
@@ -227,8 +197,6 @@ mod tests {
             config_path: None,
             category: "coding".to_string(),
             dry_run: false,
-            last_success: None,
-            consecutive_failures: 0,
         };
 
         let args = client.build_args("firefox");
@@ -248,37 +216,11 @@ mod tests {
             config_path: Some(PathBuf::from("/home/user/.wakatime.cfg")),
             category: "browsing".to_string(),
             dry_run: false,
-            last_success: None,
-            consecutive_failures: 0,
         };
 
         let args = client.build_args("chromium");
         assert!(args.contains(&"--config".to_string()));
         assert!(args.contains(&"/home/user/.wakatime.cfg".to_string()));
         assert!(args.contains(&"browsing".to_string()));
-    }
-
-    #[test]
-    fn test_health_tracking() {
-        let mut client = WakaTimeClient {
-            cli_path: PathBuf::from("/usr/bin/wakatime-cli"),
-            config_path: None,
-            category: "coding".to_string(),
-            dry_run: false,
-            last_success: None,
-            consecutive_failures: 0,
-        };
-
-        assert!(client.is_healthy());
-        assert_eq!(client.consecutive_failures(), 0);
-
-        // Simulate failures
-        for _ in 0..9 {
-            client.consecutive_failures += 1;
-        }
-        assert!(client.is_healthy());
-
-        client.consecutive_failures += 1;
-        assert!(!client.is_healthy());
     }
 }

@@ -102,12 +102,6 @@ impl Config {
         Ok(Self::default())
     }
 
-    /// Get the default config file path.
-    #[allow(dead_code)]
-    pub fn default_config_path() -> Option<PathBuf> {
-        dirs::config_dir().map(|d| d.join("wakatime-focusd").join("config.toml"))
-    }
-
     /// Check if an app class is allowed based on allowlist/denylist.
     pub fn is_app_allowed(&self, app_class: &str) -> bool {
         // Denylist takes precedence
