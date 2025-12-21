@@ -1,7 +1,8 @@
 [package]
 name = "wakatime-focusd"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 description = "Hyprland-first systemd user daemon for WakaTime app heartbeats"
 license = "MIT"
 repository = "https://github.com/joshuadavidthomas/wakatime-focusd"
@@ -21,18 +22,18 @@ toml = "0.8"
 
 # Error handling
 anyhow = "1"
-thiserror = "1"
+thiserror = "2"
 
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # DBus for systemd-logind idle detection
-zbus = { version = "4", default-features = false, features = ["tokio"] }
+zbus = { version = "5", default-features = false, features = ["tokio"] }
 
 # Misc
-dirs = "5"
-which = "6"
+dirs = "6"
+which = "7"
 
 [dev-dependencies]
 tempfile = "3"
