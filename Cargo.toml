@@ -2,7 +2,6 @@
 name = "wakatime-focusd"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
 description = "Hyprland-first systemd user daemon for WakaTime app heartbeats"
 license = "MIT"
 repository = "https://github.com/joshuadavidthomas/wakatime-focusd"
