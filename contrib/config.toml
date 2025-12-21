@@ -1,0 +1,45 @@
+# wakatime-focusd configuration
+# Location: ~/.config/wakatime-focusd/config.toml
+
+# Heartbeat interval in seconds (default: 120)
+# How often to send heartbeats for the same focused app.
+heartbeat_interval_seconds = 120
+
+# Minimum seconds before resending heartbeat for the same entity (default: 120)
+# Usually the same as heartbeat_interval_seconds.
+min_entity_resend_seconds = 120
+
+# Whether to include window titles in tracking (default: false)
+# WARNING: Titles may contain sensitive information (file paths, URLs, etc.)
+track_titles = false
+
+# How to handle titles when track_titles is true (default: "ignore")
+# Options: "ignore" | "append"
+# "append" creates entities like "Class — Title" (high cardinality warning)
+title_strategy = "ignore"
+
+# WakaTime category for heartbeats (default: "coding")
+# Other options: "browsing", "designing", "debugging", "communicating", etc.
+# See: https://wakatime.com/developers#heartbeats
+category = "coding"
+
+# Optional: Only track these app classes (empty = track all)
+# app_allowlist = ["code", "codium", "nvim", "vim", "emacs"]
+
+# Optional: Never track these app classes
+# app_denylist = ["slack", "discord", "spotify"]
+
+# Path to wakatime-cli binary (optional)
+# If not set, searches PATH and ~/.wakatime/
+# wakatime_cli_path = "/usr/bin/wakatime-cli"
+
+# Path to wakatime config file (optional)
+# Forwarded to wakatime-cli --config
+# wakatime_config_path = "/home/user/.wakatime.cfg"
+
+# Idle check interval in seconds (default: 10)
+# How often to poll systemd-logind for idle state.
+idle_check_interval_seconds = 10
+
+# Dry run mode: log commands instead of executing (default: false)
+dry_run = false

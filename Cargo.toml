@@ -1,0 +1,42 @@
+[package]
+name = "wakatime-focusd"
+version = "0.1.0"
+edition = "2021"
+description = "Hyprland-first systemd user daemon for WakaTime app heartbeats"
+license = "MIT"
+repository = "https://github.com/joshuadavidthomas/wakatime-focusd"
+keywords = ["wakatime", "hyprland", "wayland", "productivity"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full", "rt-multi-thread", "net", "time", "process", "sync", "macros", "io-util"] }
+
+# CLI parsing
+clap = { version = "4", features = ["derive"] }
+
+# Config
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# DBus for systemd-logind idle detection
+zbus = { version = "4", default-features = false, features = ["tokio"] }
+
+# Misc
+dirs = "5"
+which = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "wakatime-focusd"
+path = "src/main.rs"

@@ -1,0 +1,39 @@
+# wakatime-focusd.service - WakaTime focus tracking daemon for Hyprland
+#
+# Installation:
+#   mkdir -p ~/.config/systemd/user
+#   cp wakatime-focusd.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now wakatime-focusd.service
+#
+# IMPORTANT: Hyprland environment variables must be available to the user service.
+# Add this to your Hyprland config (hyprland.conf):
+#   exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
+#
+# Or in your shell profile for Hyprland:
+#   dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
+#
+# Logs:
+#   journalctl --user -u wakatime-focusd -f
+
+[Unit]
+Description=WakaTime focus tracking daemon for Hyprland
+Documentation=https://github.com/joshuadavidthomas/wakatime-focusd
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/wakatime-focusd
+Restart=on-failure
+RestartSec=2
+
+# Optional: set log level
+Environment=RUST_LOG=info
+
+# Ensure clean environment
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=graphical-session.target
