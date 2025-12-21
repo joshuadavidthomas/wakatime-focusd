@@ -148,7 +148,7 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
                     println!(
                         "[{}] {} | class={} title={:?} window_id={:?}",
                         captured,
-                        event.backend,
+                        event.backend.as_str(),
                         event.app_class,
                         event.title,
                         event.window_id
@@ -266,7 +266,7 @@ async fn handle_focus_event(
     if print_events {
         println!(
             "[FOCUS] {} | class={} title={:?} window_id={:?}",
-            event.backend, event.app_class, event.title, event.window_id
+            event.backend.as_str(), event.app_class, event.title, event.window_id
         );
     }
 

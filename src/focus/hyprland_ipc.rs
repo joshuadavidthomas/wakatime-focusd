@@ -2,7 +2,7 @@
 //!
 //! Connects to Hyprland's socket2 event stream and parses activewindow/activewindowv2 events.
 
-use super::{FocusError, FocusEvent};
+use super::{FocusBackend, FocusError, FocusEvent};
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -10,9 +10,6 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::sync::mpsc;
 use tracing::{debug, info, trace, warn};
-
-/// Backend identifier for Hyprland IPC.
-pub const BACKEND_NAME: &str = "hyprland-ipc";
 
 /// Get the path to Hyprland's socket2.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
@@ -113,7 +110,7 @@ impl FocusState {
                     None
                 } else {
                     Some(FocusEvent::new(
-                        BACKEND_NAME,
+                        FocusBackend::HyprlandIpc,
                         self.current_address.clone(),
                         class,
                         if title.is_empty() { None } else { Some(title) },
@@ -366,7 +363,7 @@ mod tests {
         let focus = state.update(event).expect("Should produce focus event");
         assert_eq!(focus.app_class, "firefox");
         assert_eq!(focus.title, Some("Mozilla Firefox".to_string()));
-        assert_eq!(focus.backend, BACKEND_NAME);
+        assert_eq!(focus.backend, FocusBackend::HyprlandIpc);
     }
 
     #[test]

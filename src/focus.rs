@@ -6,11 +6,25 @@ pub mod hyprland_ipc;
 
 use thiserror::Error;
 
+/// Focus detection backend.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FocusBackend {
+    HyprlandIpc,
+}
+
+impl FocusBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::HyprlandIpc => "hyprland-ipc",
+        }
+    }
+}
+
 /// A normalized focus event from any backend.
 #[derive(Debug, Clone)]
 pub struct FocusEvent {
-    /// Backend identifier (e.g., "hyprland-ipc").
-    pub backend: &'static str,
+    /// Backend that produced this event.
+    pub backend: FocusBackend,
 
     /// Window identifier (backend-specific, e.g., "0xabc123" from activewindowv2).
     pub window_id: Option<String>,
@@ -25,7 +39,7 @@ pub struct FocusEvent {
 impl FocusEvent {
     /// Create a new focus event.
     pub fn new(
-        backend: &'static str,
+        backend: FocusBackend,
         window_id: Option<String>,
         app_class: String,
         title: Option<String>,
