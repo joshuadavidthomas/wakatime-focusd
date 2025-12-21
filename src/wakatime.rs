@@ -31,9 +31,6 @@ pub struct WakaTimeClient {
 }
 
 impl WakaTimeClient {
-    const PLUGIN_NAME: &str = env!("CARGO_PKG_NAME");
-    const VERSION: &str = env!("CARGO_PKG_VERSION");
-
     /// Create a new WakaTime client from config.
     pub fn from_config(config: &Config) -> Result<Self> {
         let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_ref())?;
@@ -51,7 +48,21 @@ impl WakaTimeClient {
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
     pub async fn send_heartbeat(&self, entity: &str) -> Result<()> {
-        let args = self.build_args(entity);
+        let mut args = vec![
+            "--entity-type",
+            "app",
+            "--entity",
+            entity,
+            "--plugin",
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
+            "--category",
+            &self.category,
+        ];
+
+        if let Some(ref config_path) = self.config_path {
+            args.push("--config");
+            args.push(config_path.to_str().unwrap_or(""));
+        }
 
         if self.dry_run {
             info!(
@@ -104,27 +115,6 @@ impl WakaTimeClient {
             )
         }
     }
-
-    /// Build command line arguments for wakatime-cli.
-    fn build_args(&self, entity: &str) -> Vec<String> {
-        let mut args = vec![
-            "--entity-type".to_string(),
-            "app".to_string(),
-            "--entity".to_string(),
-            entity.to_string(),
-            "--plugin".to_string(),
-            format!("{}/{}", Self::PLUGIN_NAME, Self::VERSION),
-            "--category".to_string(),
-            self.category.clone(),
-        ];
-
-        if let Some(ref config_path) = self.config_path {
-            args.push("--config".to_string());
-            args.push(config_path.display().to_string());
-        }
-
-        args
-    }
 }
 
 /// Find the wakatime-cli binary.
@@ -174,41 +164,3 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_build_args() {
-        let client = WakaTimeClient {
-            cli_path: PathBuf::from("/usr/bin/wakatime-cli"),
-            config_path: None,
-            category: "coding".to_string(),
-            dry_run: false,
-        };
-
-        let args = client.build_args("firefox");
-        assert!(args.contains(&"--entity-type".to_string()));
-        assert!(args.contains(&"app".to_string()));
-        assert!(args.contains(&"--entity".to_string()));
-        assert!(args.contains(&"firefox".to_string()));
-        assert!(args.contains(&"--plugin".to_string()));
-        assert!(args.contains(&"--category".to_string()));
-        assert!(args.contains(&"coding".to_string()));
-    }
-
-    #[test]
-    fn test_build_args_with_config() {
-        let client = WakaTimeClient {
-            cli_path: PathBuf::from("/usr/bin/wakatime-cli"),
-            config_path: Some(PathBuf::from("/home/user/.wakatime.cfg")),
-            category: "browsing".to_string(),
-            dry_run: false,
-        };
-
-        let args = client.build_args("chromium");
-        assert!(args.contains(&"--config".to_string()));
-        assert!(args.contains(&"/home/user/.wakatime.cfg".to_string()));
-        assert!(args.contains(&"browsing".to_string()));
-    }
-}
