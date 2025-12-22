@@ -9,30 +9,19 @@ keywords = ["wakatime", "hyprland", "wayland", "productivity"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-# Async runtime
-tokio = { version = "1", features = ["full", "rt-multi-thread", "net", "time", "process", "sync", "macros", "io-util"] }
-
-# CLI parsing
-clap = { version = "4", features = ["derive"] }
-
-# Config
-serde = { version = "1", features = ["derive"] }
-toml = "0.8"
-
-# Error handling
 anyhow = "1"
+async-trait = "0.1"
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
-
-# Logging
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "process", "sync", "io-util"] }
+toml = "0.9"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# DBus for systemd-logind idle detection
+which = "8"
 zbus = { version = "5", default-features = false, features = ["tokio"] }
-
-# Misc
-dirs = "6"
-which = "7"
 
 [dev-dependencies]
 tempfile = "3"

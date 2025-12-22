@@ -3,6 +3,7 @@
 //! Builds and spawns wakatime-cli commands for sending heartbeats.
 
 use crate::config::Config;
+use crate::domain::Heartbeat;
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -23,9 +24,6 @@ pub struct WakaTimeClient {
     /// Optional config file path.
     config_path: Option<PathBuf>,
 
-    /// Category for heartbeats.
-    category: String,
-
     /// Dry run mode.
     dry_run: bool,
 }
@@ -39,24 +37,23 @@ impl WakaTimeClient {
         Ok(Self {
             cli_path,
             config_path: config.wakatime_config_path.clone(),
-            category: config.category.clone(),
             dry_run: config.dry_run,
         })
     }
 
-    /// Send a heartbeat for the given entity.
+    /// Send a heartbeat.
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
-    pub async fn send_heartbeat(&self, entity: &str) -> Result<()> {
+    pub async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
         let mut args = vec![
             "--entity-type",
             "app",
             "--entity",
-            entity,
+            heartbeat.entity.as_str(),
             "--plugin",
             concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
             "--category",
-            &self.category,
+            heartbeat.category.as_str(),
         ];
 
         if let Some(ref config_path) = self.config_path {

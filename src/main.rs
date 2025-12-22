@@ -1,17 +1,19 @@
 //! wakatime-focusd - Hyprland-first systemd user daemon for WakaTime app heartbeats.
 //!
-//! Tracks the currently focused desktop application and sends heartbeats to WakaTime
+//! Tracks currently focused desktop application and sends heartbeats to WakaTime
 //! using wakatime-cli.
 
+mod backend;
 mod config;
-mod focus;
+mod domain;
+mod heartbeat;
 mod idle;
 mod throttle;
 mod wakatime;
 
+use crate::backend::{FocusEvent, FocusSource, HyprlandSource};
 use crate::config::Config;
-use crate::focus::hyprland_ipc;
-use crate::focus::FocusEvent;
+use crate::heartbeat::HeartbeatBuilder;
 use crate::idle::IdleMonitor;
 use crate::throttle::{HeartbeatThrottle, ThrottleDecision};
 use crate::wakatime::WakaTimeClient;
@@ -22,13 +24,12 @@ use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 /// WakaTime focus daemon for Hyprland.
 ///
-/// Tracks the currently focused desktop application and sends heartbeats to WakaTime.
+/// Tracks currently focused desktop application and sends heartbeats to WakaTime.
 #[derive(Parser, Debug)]
 #[command(name = "wakatime-focusd")]
 #[command(author, version, about, long_about = None)]
@@ -76,7 +77,7 @@ async fn main() -> Result<()> {
     if !hyprland_available {
         error!("Hyprland environment not detected.");
         error!("Required environment variables:");
-        for diag in hyprland_ipc::get_diagnostics() {
+        for diag in HyprlandSource::get_diagnostics() {
             error!("  {}", diag);
         }
         error!("");
@@ -86,18 +87,13 @@ async fn main() -> Result<()> {
     }
 
     // Show diagnostics
-    for diag in hyprland_ipc::get_diagnostics() {
+    for diag in HyprlandSource::get_diagnostics() {
         debug!("{}", diag);
     }
 
     // Load config
-    let mut config = Config::load_or_default(args.config.as_deref())
+    let config = Config::load_or_default(args.config.as_deref())
         .context("Failed to load configuration")?;
-
-    // Override dry_run if specified on command line
-    if args.dry_run {
-        config.dry_run = true;
-    }
 
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
@@ -129,26 +125,18 @@ fn init_logging(level: &str) -> Result<()> {
 async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
     info!("Running in oneshot mode, capturing {} events", count);
 
-    let (tx, mut rx) = mpsc::channel::<FocusEvent>(32);
-
-    // Spawn focus stream
-    tokio::spawn(async move {
-        if let Err(e) = hyprland_ipc::run_focus_stream(tx).await {
-            error!("Focus stream error: {}", e);
-        }
-    });
-
+    let mut source = HyprlandSource::connect().await?;
+    
     // Capture events
     let mut captured = 0;
     while captured < count {
-        match tokio::time::timeout(Duration::from_secs(30), rx.recv()).await {
-            Ok(Some(event)) => {
+        match tokio::time::timeout(Duration::from_secs(30), source.next_event()).await {
+            Ok(Ok(event)) => {
                 captured += 1;
                 if print_events {
                     println!(
-                        "[{}] {} | class={} title={:?} window_id={:?}",
+                        "[{}] | class={} title={:?} window_id={:?}",
                         captured,
-                        event.backend.as_str(),
                         event.app_class,
                         event.title,
                         event.window_id
@@ -160,8 +148,8 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
                     );
                 }
             }
-            Ok(None) => {
-                warn!("Focus stream ended unexpectedly");
+            Ok(Err(e)) => {
+                error!("Focus event error: {}", e);
                 break;
             }
             Err(_) => {
@@ -175,88 +163,73 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
     Ok(())
 }
 
-/// Run the daemon event loop.
+/// Run daemon event loop.
 async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
-    // Initialize WakaTime client
+    // Initialize components
     let wakatime_client = WakaTimeClient::from_config(&config)
         .context("Failed to initialize WakaTime client")?;
 
-    // Initialize idle monitor
     let idle_monitor = Arc::new(IdleMonitor::new());
     idle_monitor.clone().start_polling(Duration::from_secs(config.idle_check_interval_seconds));
 
-    // Initialize throttle
     let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
-
-    // Create focus event channel
-    let (tx, mut rx) = mpsc::channel::<FocusEvent>(32);
-
-    // Spawn focus stream with reconnection handling
-    tokio::spawn(async move {
-        loop {
-            if let Err(e) = hyprland_ipc::run_focus_stream(tx.clone()).await {
-                error!("Focus stream error: {}", e);
-                // run_focus_stream handles reconnection internally
-            }
-        }
-    });
+    let heartbeat_builder = HeartbeatBuilder::from_config(&config)?;
 
     info!("Daemon started, waiting for focus events...");
 
-    // Main event loop
     loop {
-        tokio::select! {
-            // Handle focus events
-            event = rx.recv() => {
-                match event {
-                    Some(focus_event) => {
-                        handle_focus_event(
-                            &focus_event,
-                            &config,
-                            &idle_monitor,
-                            &mut throttle,
-                            &wakatime_client,
-                            print_events,
-                        ).await;
-                    }
-                    None => {
-                        error!("Focus event channel closed");
-                        break;
+        let mut source = HyprlandSource::connect().await?;
+        
+        loop {
+            tokio::select! {
+                // Handle focus events
+                event = source.next_event() => {
+                    match event {
+                        Ok(focus_event) => {
+                            handle_focus_event(
+                                &focus_event,
+                                &heartbeat_builder,
+                                &idle_monitor,
+                                &mut throttle,
+                                &wakatime_client,
+                                print_events,
+                            ).await;
+                        }
+                        Err(e) => {
+                            error!("Focus event error: {}", e);
+                            break; // Reconnect
+                        }
                     }
                 }
-            }
 
-            // Periodic heartbeat check (in case no focus changes but time elapsed)
-            _ = tokio::time::sleep(Duration::from_secs(config.heartbeat_interval_seconds)) => {
-                // Check if we should send a periodic heartbeat for the current entity
-                if let Some(entity) = throttle.last_entity() {
-                    if throttle.should_send(entity) == ThrottleDecision::Send {
-                        // Check idle state
-                        if idle_monitor.is_idle() {
-                            debug!("Skipping periodic heartbeat: session is idle");
-                            continue;
-                        }
+                // Periodic heartbeat check (in case no focus changes but time elapsed)
+                _ = tokio::time::sleep(Duration::from_secs(config.heartbeat_interval_seconds)) => {
+                    if let Some(last_heartbeat) = throttle.last_heartbeat() {
+                        if throttle.should_send(&last_heartbeat.entity) == ThrottleDecision::Send {
+                            if idle_monitor.is_idle() {
+                                debug!("Skipping periodic heartbeat: session is idle");
+                                continue;
+                            }
 
-                        let entity = entity.to_string();
-                        debug!("Sending periodic heartbeat for: {}", entity);
-                        throttle.record_sent(&entity);
+                            let periodic_heartbeat = heartbeat_builder.build(last_heartbeat.source.clone());
+                            debug!("Sending periodic heartbeat for: {}", periodic_heartbeat.entity.as_str());
+                            throttle.record_sent(periodic_heartbeat.clone());
 
-                        if let Err(e) = wakatime_client.send_heartbeat(&entity).await {
-                            warn!("Failed to send periodic heartbeat: {}", e);
+                            if let Err(e) = wakatime_client.send_heartbeat(&periodic_heartbeat).await {
+                                warn!("Failed to send periodic heartbeat: {}", e);
+                            }
                         }
                     }
                 }
             }
         }
     }
-
-    Ok(())
 }
 
 /// Handle a focus event.
 async fn handle_focus_event(
     event: &FocusEvent,
-    config: &Config,
+    heartbeat_builder: &HeartbeatBuilder,
     idle_monitor: &IdleMonitor,
     throttle: &mut HeartbeatThrottle,
     wakatime_client: &WakaTimeClient,
@@ -265,8 +238,8 @@ async fn handle_focus_event(
     // Print event if requested
     if print_events {
         println!(
-            "[FOCUS] {} | class={} title={:?} window_id={:?}",
-            event.backend.as_str(), event.app_class, event.title, event.window_id
+            "[FOCUS] | class={} title={:?} window_id={:?}",
+            event.app_class, event.title, event.window_id
         );
     }
 
@@ -277,13 +250,13 @@ async fn handle_focus_event(
     }
 
     // Check allowlist/denylist
-    if !config.is_app_allowed(&event.app_class) {
+    if !heartbeat_builder.is_app_allowed(&event.app_class) {
         debug!("App '{}' not allowed by filter", event.app_class);
         return;
     }
 
-    // Build entity string
-    let entity = config.build_entity(&event.app_class, event.title.as_deref());
+    // Build heartbeat
+    let heartbeat = heartbeat_builder.build(event.clone());
 
     // Check idle state
     if idle_monitor.is_idle() {
@@ -292,17 +265,17 @@ async fn handle_focus_event(
     }
 
     // Check throttle
-    match throttle.should_send(&entity) {
+    match throttle.should_send(&heartbeat.entity) {
         ThrottleDecision::Send => {
-            debug!("Sending heartbeat for: {}", entity);
-            throttle.record_sent(&entity);
+            debug!("Sending heartbeat for: {}", heartbeat.entity.as_str());
+            throttle.record_sent(heartbeat.clone());
 
-            if let Err(e) = wakatime_client.send_heartbeat(&entity).await {
+            if let Err(e) = wakatime_client.send_heartbeat(&heartbeat).await {
                 warn!("Failed to send heartbeat: {}", e);
             }
         }
         ThrottleDecision::Skip => {
-            debug!("Throttled heartbeat for: {}", entity);
+            debug!("Throttled heartbeat for: {}", heartbeat.entity.as_str());
         }
     }
 }

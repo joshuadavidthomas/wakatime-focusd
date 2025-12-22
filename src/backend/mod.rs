@@ -1,54 +1,39 @@
-//! Focus detection module.
+//! Focus detection backends.
 //!
-//! Provides the FocusEvent model for backend implementations.
+//! This module provides a generic abstraction for detecting window focus changes
+//! across different window managers and desktop environments.
 
-pub mod hyprland_ipc;
+mod hyprland;
 
+pub use hyprland::HyprlandSource;
+
+use async_trait::async_trait;
 use thiserror::Error;
 
-/// Focus detection backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FocusBackend {
-    HyprlandIpc,
-}
-
-impl FocusBackend {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::HyprlandIpc => "hyprland-ipc",
-        }
-    }
-}
-
-/// A normalized focus event from any backend.
+/// Backend-agnostic focus event.
 #[derive(Debug, Clone)]
 pub struct FocusEvent {
-    /// Backend that produced this event.
-    pub backend: FocusBackend,
-
-    /// Window identifier (backend-specific, e.g., "0xabc123" from activewindowv2).
-    pub window_id: Option<String>,
-
     /// Application class/app_id (primary identifier for the app).
     pub app_class: String,
 
     /// Window title (optional, may contain sensitive info).
     pub title: Option<String>,
+
+    /// Window identifier (backend-specific).
+    pub window_id: Option<String>,
 }
 
 impl FocusEvent {
     /// Create a new focus event.
     pub fn new(
-        backend: FocusBackend,
-        window_id: Option<String>,
         app_class: String,
         title: Option<String>,
+        window_id: Option<String>,
     ) -> Self {
         Self {
-            backend,
-            window_id,
             app_class,
             title,
+            window_id,
         }
     }
 
@@ -58,17 +43,21 @@ impl FocusEvent {
     }
 }
 
+/// Trait for focus event sources.
+#[async_trait]
+pub trait FocusSource: Send {
+    /// Get the next focus event.
+    ///
+    /// This method blocks until a focus event occurs or an error happens.
+    /// Implementations should handle reconnection internally.
+    async fn next_event(&mut self) -> Result<FocusEvent, FocusError>;
+}
+
 /// Errors that can occur in focus detection.
 #[derive(Error, Debug)]
 pub enum FocusError {
     #[error("Socket connection failed: {0}")]
     ConnectionFailed(String),
-
-    #[error("Socket disconnected")]
-    Disconnected,
-
-    #[error("Failed to read from socket: {0}")]
-    ReadError(String),
 
     #[error("Environment variable not set: {0}")]
     EnvVarNotSet(String),

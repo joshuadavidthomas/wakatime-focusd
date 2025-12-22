@@ -1,5 +1,6 @@
 //! Configuration loading and defaults for wakatime-focusd.
 
+use crate::domain::Category;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -13,6 +14,15 @@ pub enum TitleStrategy {
     Ignore,
     /// Append title to class: "Class — Title".
     Append,
+}
+
+/// Category rule for pattern-based category assignment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CategoryRule {
+    /// Regex pattern to match app_class (case-insensitive).
+    pub pattern: String,
+    /// Category to assign when pattern matches.
+    pub category: Category,
 }
 
 /// Main configuration for wakatime-focusd.
@@ -31,8 +41,11 @@ pub struct Config {
     /// How to handle titles when track_titles is true.
     pub title_strategy: TitleStrategy,
 
-    /// WakaTime category for heartbeats (default: "coding").
-    pub category: String,
+    /// Default category for apps that don't match any rule (default: "coding").
+    pub default_category: Category,
+
+    /// Category rules evaluated in order (first match wins).
+    pub category_rules: Vec<CategoryRule>,
 
     /// Optional allowlist of app classes to track.
     /// If set, only these classes generate heartbeats.
@@ -64,7 +77,8 @@ impl Default for Config {
             min_entity_resend_seconds: 120,
             track_titles: false,
             title_strategy: TitleStrategy::default(),
-            category: "coding".to_string(),
+            default_category: Category::default(),
+            category_rules: Vec::new(),
             app_allowlist: None,
             app_denylist: None,
             wakatime_cli_path: None,
@@ -101,43 +115,6 @@ impl Config {
 
         Ok(Self::default())
     }
-
-    /// Check if an app class is allowed based on allowlist/denylist.
-    pub fn is_app_allowed(&self, app_class: &str) -> bool {
-        // Denylist takes precedence
-        if let Some(ref denylist) = self.app_denylist {
-            if denylist.iter().any(|d| d == app_class) {
-                return false;
-            }
-        }
-
-        // If allowlist is set, app must be in it
-        if let Some(ref allowlist) = self.app_allowlist {
-            return allowlist.iter().any(|a| a == app_class);
-        }
-
-        // No allowlist means all apps are allowed (unless denylisted)
-        true
-    }
-
-    /// Build the entity string from app class and optional title.
-    pub fn build_entity(&self, app_class: &str, title: Option<&str>) -> String {
-        if self.track_titles {
-            match self.title_strategy {
-                TitleStrategy::Ignore => app_class.to_string(),
-                TitleStrategy::Append => {
-                    if let Some(t) = title {
-                        if !t.is_empty() {
-                            return format!("{} — {}", app_class, t);
-                        }
-                    }
-                    app_class.to_string()
-                }
-            }
-        } else {
-            app_class.to_string()
-        }
-    }
 }
 
 #[cfg(test)]
@@ -150,80 +127,44 @@ mod tests {
         assert_eq!(config.heartbeat_interval_seconds, 120);
         assert_eq!(config.min_entity_resend_seconds, 120);
         assert!(!config.track_titles);
-        assert_eq!(config.category, "coding");
+        assert_eq!(config.default_category, Category::Coding);
+        assert!(config.category_rules.is_empty());
         assert!(!config.dry_run);
     }
 
     #[test]
-    fn test_app_filtering() {
-        let mut config = Config::default();
-
-        // No filters - all allowed
-        assert!(config.is_app_allowed("firefox"));
-        assert!(config.is_app_allowed("code"));
-
-        // With denylist
-        config.app_denylist = Some(vec!["slack".to_string()]);
-        assert!(config.is_app_allowed("firefox"));
-        assert!(!config.is_app_allowed("slack"));
-
-        // With allowlist
-        config.app_allowlist = Some(vec!["code".to_string(), "firefox".to_string()]);
-        assert!(config.is_app_allowed("firefox"));
-        assert!(config.is_app_allowed("code"));
-        assert!(!config.is_app_allowed("chromium"));
-        assert!(!config.is_app_allowed("slack")); // Still denied
-
-        // Denylist overrides allowlist
-        config.app_denylist = Some(vec!["firefox".to_string()]);
-        assert!(!config.is_app_allowed("firefox"));
-        assert!(config.is_app_allowed("code"));
-    }
-
-    #[test]
-    fn test_build_entity() {
-        let mut config = Config::default();
-
-        // track_titles = false
-        assert_eq!(config.build_entity("code", Some("main.rs")), "code");
-        assert_eq!(config.build_entity("code", None), "code");
-
-        // track_titles = true, strategy = ignore
-        config.track_titles = true;
-        config.title_strategy = TitleStrategy::Ignore;
-        assert_eq!(config.build_entity("code", Some("main.rs")), "code");
-
-        // track_titles = true, strategy = append
-        config.title_strategy = TitleStrategy::Append;
-        assert_eq!(
-            config.build_entity("code", Some("main.rs")),
-            "code — main.rs"
-        );
-        assert_eq!(config.build_entity("code", None), "code");
-        assert_eq!(config.build_entity("code", Some("")), "code");
-    }
-
-    #[test]
-    fn test_parse_toml() {
+    fn test_parse_toml_with_category_rules() {
         let toml_str = r#"
             heartbeat_interval_seconds = 60
-            min_entity_resend_seconds = 60
             track_titles = true
             title_strategy = "append"
-            category = "browsing"
-            app_denylist = ["slack", "discord"]
+            default_category = "browsing"
+            app_denylist = ["spotify"]
             dry_run = true
+
+            [[category_rules]]
+            pattern = "firefox|chromium"
+            category = "browsing"
+
+            [[category_rules]]
+            pattern = "slack|discord"
+            category = "communicating"
         "#;
 
         let config: Config = toml::from_str(toml_str).unwrap();
         assert_eq!(config.heartbeat_interval_seconds, 60);
         assert!(config.track_titles);
         assert_eq!(config.title_strategy, TitleStrategy::Append);
-        assert_eq!(config.category, "browsing");
+        assert_eq!(config.default_category, Category::Browsing);
+        assert_eq!(config.category_rules.len(), 2);
+        assert_eq!(config.category_rules[0].pattern, "firefox|chromium");
+        assert_eq!(config.category_rules[0].category, Category::Browsing);
+        assert_eq!(config.category_rules[1].pattern, "slack|discord");
+        assert_eq!(config.category_rules[1].category, Category::Communicating);
         assert!(config.dry_run);
         assert_eq!(
             config.app_denylist,
-            Some(vec!["slack".to_string(), "discord".to_string()])
+            Some(vec!["spotify".to_string()])
         );
     }
 }

@@ -18,10 +18,29 @@ track_titles = false
 # "append" creates entities like "Class — Title" (high cardinality warning)
 title_strategy = "ignore"
 
-# WakaTime category for heartbeats (default: "coding")
-# Other options: "browsing", "designing", "debugging", "communicating", etc.
+# Default category for heartbeats when no rule matches (default: "coding")
+# Valid options: coding, building, indexing, debugging, browsing, running tests,
+# writing tests, manual testing, writing docs, code reviewing, communicating,
+# notes, researching, learning, designing, ai coding
 # See: https://wakatime.com/developers#heartbeats
-category = "coding"
+default_category = "coding"
+
+# Category rules - first match wins (case-insensitive regex)
+# [[category_rules]]
+# pattern = "firefox|chromium|brave|zen-browser"
+# category = "browsing"
+#
+# [[category_rules]]
+# pattern = "thunderbird|evolution|geary"
+# category = "communicating"
+#
+# [[category_rules]]
+# pattern = "slack|discord|element"
+# category = "communicating"
+#
+# [[category_rules]]
+# pattern = "figma|inkscape|gimp"
+# category = "designing"
 
 # Optional: Only track these app classes (empty = track all)
 # app_allowlist = ["code", "codium", "nvim", "vim", "emacs"]

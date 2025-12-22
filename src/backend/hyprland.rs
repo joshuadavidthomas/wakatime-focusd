@@ -2,14 +2,135 @@
 //!
 //! Connects to Hyprland's socket2 event stream and parses activewindow/activewindowv2 events.
 
-use super::{FocusBackend, FocusError, FocusEvent};
+use super::{FocusError, FocusEvent, FocusSource};
+use async_trait::async_trait;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::UnixStream;
-use tokio::sync::mpsc;
 use tracing::{debug, info, trace, warn};
+
+/// Hyprland focus source implementation.
+pub struct HyprlandSource {
+    reader: Option<BufReader<UnixStream>>,
+    state: FocusState,
+    backoff: Duration,
+}
+
+impl HyprlandSource {
+    /// Create a new Hyprland focus source.
+    pub async fn connect() -> Result<Self, FocusError> {
+        let socket_path = get_socket2_path()?;
+        info!("Connecting to Hyprland socket2: {}", socket_path.display());
+
+        let stream = UnixStream::connect(&socket_path)
+            .await
+            .map_err(|e| FocusError::ConnectionFailed(e.to_string()))?;
+
+        info!("Connected to Hyprland socket2");
+
+        Ok(Self {
+            reader: Some(BufReader::new(stream)),
+            state: FocusState::default(),
+            backoff: Duration::from_millis(250),
+        })
+    }
+
+    /// Get diagnostic information about the Hyprland environment.
+    pub fn get_diagnostics() -> Vec<String> {
+        let mut diags = Vec::new();
+
+        match env::var("XDG_RUNTIME_DIR") {
+            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={}", v)),
+            Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
+        }
+
+        match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+            Ok(v) => diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={}", v)),
+            Err(_) => diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET".to_string()),
+        }
+
+        if let Ok(path) = get_socket2_path() {
+            diags.push(format!("Socket2 path: {} (exists)", path.display()));
+        } else {
+            diags.push("Socket2 path: NOT FOUND".to_string());
+        }
+
+        diags
+    }
+
+    /// Attempt to reconnect to the Hyprland socket.
+    async fn reconnect(&mut self) -> Result<(), FocusError> {
+        const MAX_BACKOFF: Duration = Duration::from_secs(5);
+
+        warn!(
+            "Socket2 connection lost. Retrying in {:?}...",
+            self.backoff
+        );
+
+        tokio::time::sleep(self.backoff).await;
+
+        // Exponential backoff with cap
+        self.backoff = std::cmp::min(self.backoff * 2, MAX_BACKOFF);
+
+        let socket_path = get_socket2_path()?;
+        let stream = UnixStream::connect(&socket_path)
+            .await
+            .map_err(|e| FocusError::ConnectionFailed(e.to_string()))?;
+
+        info!("Reconnected to Hyprland socket2");
+        self.reader = Some(BufReader::new(stream));
+        self.backoff = Duration::from_millis(250); // Reset backoff on success
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl FocusSource for HyprlandSource {
+    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
+        loop {
+            let reader = match &mut self.reader {
+                Some(r) => r,
+                None => {
+                    self.reconnect().await?;
+                    continue;
+                }
+            };
+
+            let mut line = String::new();
+            match reader.read_line(&mut line).await {
+                Ok(0) => {
+                    // EOF - socket closed
+                    warn!("Socket2 stream ended (EOF)");
+                    self.reader = None;
+                    self.reconnect().await?;
+                    continue;
+                }
+                Ok(_) => {
+                    trace!("Received line: {}", line.trim());
+                    let event = parse_event_line(&line);
+
+                    if let Some(focus_event) = self.state.update(event) {
+                        debug!(
+                            "Focus changed: class={}, title={:?}, window_id={:?}",
+                            focus_event.app_class, focus_event.title, focus_event.window_id
+                        );
+                        return Ok(focus_event);
+                    }
+                    // No event produced, read next line
+                }
+                Err(e) => {
+                    warn!("Read error: {}", e);
+                    self.reader = None;
+                    self.reconnect().await?;
+                    continue;
+                }
+            }
+        }
+    }
+}
 
 /// Get the path to Hyprland's socket2.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
@@ -110,10 +231,9 @@ impl FocusState {
                     None
                 } else {
                     Some(FocusEvent::new(
-                        FocusBackend::HyprlandIpc,
-                        self.current_address.clone(),
                         class,
                         if title.is_empty() { None } else { Some(title) },
+                        self.current_address.clone(),
                     ))
                 }
             }
@@ -130,103 +250,6 @@ impl FocusState {
             HyprlandEvent::Other => None,
         }
     }
-}
-
-/// Connect to the Hyprland socket2 and stream focus events.
-///
-/// This function handles reconnection with exponential backoff.
-/// It sends FocusEvents through the provided channel.
-pub async fn run_focus_stream(tx: mpsc::Sender<FocusEvent>) -> Result<(), FocusError> {
-    const MAX_BACKOFF: Duration = Duration::from_secs(5);
-    const INITIAL_BACKOFF: Duration = Duration::from_millis(250);
-
-    let mut backoff = INITIAL_BACKOFF;
-
-    loop {
-        match connect_and_stream(&tx).await {
-            Ok(()) => {
-                // Clean disconnect (shouldn't happen normally)
-                info!("Socket2 stream ended cleanly");
-                break Ok(());
-            }
-            Err(e) => {
-                warn!("Socket2 connection error: {}. Retrying in {:?}...", e, backoff);
-
-                tokio::time::sleep(backoff).await;
-
-                // Exponential backoff with cap
-                backoff = std::cmp::min(backoff * 2, MAX_BACKOFF);
-            }
-        }
-    }
-}
-
-/// Internal function to connect and stream events once.
-async fn connect_and_stream(tx: &mpsc::Sender<FocusEvent>) -> Result<(), FocusError> {
-    let socket_path = get_socket2_path()?;
-    info!("Connecting to Hyprland socket2: {}", socket_path.display());
-
-    let stream = UnixStream::connect(&socket_path)
-        .await
-        .map_err(|e| FocusError::ConnectionFailed(e.to_string()))?;
-
-    info!("Connected to Hyprland socket2");
-
-    let reader = BufReader::new(stream);
-    let mut lines = reader.lines();
-    let mut state = FocusState::default();
-
-    loop {
-        match lines.next_line().await {
-            Ok(Some(line)) => {
-                trace!("Received line: {}", line);
-                let event = parse_event_line(&line);
-
-                if let Some(focus_event) = state.update(event) {
-                    debug!(
-                        "Focus changed: class={}, title={:?}, window_id={:?}",
-                        focus_event.app_class, focus_event.title, focus_event.window_id
-                    );
-
-                    if tx.send(focus_event).await.is_err() {
-                        // Receiver dropped, shut down
-                        info!("Focus event receiver dropped, stopping stream");
-                        return Ok(());
-                    }
-                }
-            }
-            Ok(None) => {
-                // EOF - socket closed
-                return Err(FocusError::Disconnected);
-            }
-            Err(e) => {
-                return Err(FocusError::ReadError(e.to_string()));
-            }
-        }
-    }
-}
-
-/// Get diagnostic information about the Hyprland environment.
-pub fn get_diagnostics() -> Vec<String> {
-    let mut diags = Vec::new();
-
-    match env::var("XDG_RUNTIME_DIR") {
-        Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={}", v)),
-        Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
-    }
-
-    match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
-        Ok(v) => diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={}", v)),
-        Err(_) => diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET".to_string()),
-    }
-
-    if let Ok(path) = get_socket2_path() {
-        diags.push(format!("Socket2 path: {} (exists)", path.display()));
-    } else {
-        diags.push("Socket2 path: NOT FOUND".to_string());
-    }
-
-    diags
 }
 
 #[cfg(test)]
@@ -335,7 +358,10 @@ mod tests {
 
     #[test]
     fn test_parse_malformed_line() {
-        assert!(matches!(parse_event_line("no separator"), HyprlandEvent::Other));
+        assert!(matches!(
+            parse_event_line("no separator"),
+            HyprlandEvent::Other
+        ));
         assert!(matches!(parse_event_line(""), HyprlandEvent::Other));
     }
 
@@ -363,7 +389,6 @@ mod tests {
         let focus = state.update(event).expect("Should produce focus event");
         assert_eq!(focus.app_class, "firefox");
         assert_eq!(focus.title, Some("Mozilla Firefox".to_string()));
-        assert_eq!(focus.backend, FocusBackend::HyprlandIpc);
     }
 
     #[test]
@@ -375,7 +400,10 @@ mod tests {
             title: "".to_string(),
         };
 
-        assert!(state.update(event).is_none(), "Empty class should not produce event");
+        assert!(
+            state.update(event).is_none(),
+            "Empty class should not produce event"
+        );
     }
 
     #[test]
