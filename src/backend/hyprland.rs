@@ -46,9 +46,23 @@ impl HyprlandSource {
             Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
         }
 
+        let hypr_dir = match env::var("XDG_RUNTIME_DIR") {
+            Ok(dir) => PathBuf::from(dir).join("hypr"),
+            Err(_) => return diags,
+        };
+
+        if !hypr_dir.exists() {
+            diags.push("hyprland directory: NOT FOUND".to_string());
+            return diags;
+        }
+
         match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
-            Ok(v) => diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={}", v)),
-            Err(_) => diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET".to_string()),
+            Ok(v) => {
+                diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={} (set)", v));
+            }
+            Err(_) => {
+                diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET (will auto-discover)".to_string());
+            }
         }
 
         if let Ok(path) = get_socket2_path() {
@@ -133,26 +147,62 @@ impl FocusSource for HyprlandSource {
 }
 
 /// Get the path to Hyprland's socket2.
+///
+/// First tries HYPRLAND_INSTANCE_SIGNATURE env var (for multi-instance setups),
+/// then falls back to discovering the most recently modified socket.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
         .map_err(|_| FocusError::EnvVarNotSet("XDG_RUNTIME_DIR".to_string()))?;
 
-    let hyprland_sig = env::var("HYPRLAND_INSTANCE_SIGNATURE")
-        .map_err(|_| FocusError::EnvVarNotSet("HYPRLAND_INSTANCE_SIGNATURE".to_string()))?;
+    let hypr_dir = PathBuf::from(&xdg_runtime_dir).join("hypr");
 
-    let socket_path = PathBuf::from(&xdg_runtime_dir)
-        .join("hypr")
-        .join(&hyprland_sig)
-        .join(".socket2.sock");
-
-    if !socket_path.exists() {
+    if !hypr_dir.exists() {
         return Err(FocusError::SocketNotFound(format!(
             "{}",
-            socket_path.display()
+            hypr_dir.display()
         )));
     }
 
-    Ok(socket_path)
+    if let Ok(sig) = env::var("HYPRLAND_INSTANCE_SIGNATURE") {
+        let path = hypr_dir.join(&sig).join(".socket2.sock");
+        if path.exists() {
+            info!("Using Hyprland socket from HYPRLAND_INSTANCE_SIGNATURE: {}", path.display());
+            return Ok(path);
+        }
+        warn!(
+            "HYPRLAND_INSTANCE_SIGNATURE set but socket not found: {}, falling back to discovery",
+            sig
+        );
+    }
+
+    if let Ok(entries) = std::fs::read_dir(&hypr_dir) {
+        let sockets: Vec<(PathBuf, std::time::SystemTime)> = entries
+            .filter_map(|e| e.ok())
+            .filter_map(|e| {
+                let path = e.path().join(".socket2.sock");
+                path.exists().then(|| {
+                    path.metadata()
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .map(|mtime| (path, mtime))
+                })
+            })
+            .filter_map(|o| o)
+            .collect();
+
+        if let Some((path, _mtime)) = sockets
+            .into_iter()
+            .max_by_key(|(_p, mtime)| *mtime)
+        {
+            info!("Discovered Hyprland socket via glob: {}", path.display());
+            return Ok(path);
+        }
+    }
+
+    Err(FocusError::SocketNotFound(format!(
+        "No Hyprland socket found in {}",
+        hypr_dir.display()
+    )))
 }
 
 /// Parsed IPC event from socket2.

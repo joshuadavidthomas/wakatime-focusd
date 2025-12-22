@@ -41,13 +41,13 @@ systemctl --user enable --now wakatime-focusd.service
 
 #### Hyprland
 
-The Hyprland backend requires environment variables to be available to systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+The daemon automatically discovers the Hyprland IPC socket. For multi-instance setups, export environment variables to systemd by adding this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
 
 ```
 exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
 ```
 
-Without this, the service will fail to start because it cannot locate the Hyprland IPC socket.
+This is only needed if you run multiple Hyprland instances simultaneously.
 
 ## Configuration
 
@@ -137,17 +137,20 @@ Options:
 
 ### Service fails to start
 
-1. Check if Hyprland backend environment is available:
+1. Check if systemd environment has required variables:
    ```bash
-   systemctl --user show-environment | grep HYPRLAND
+   systemctl --user show-environment | grep XDG_RUNTIME_DIR
    ```
 
-2. If not, add to your Hyprland config:
-   ```
-   exec-once = dbus-update-activation-environment --systemd HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
+2. Verify Hyprland socket exists:
+   ```bash
+   ls -la $XDG_RUNTIME_DIR/hypr/*/.socket2.sock 2>/dev/null
    ```
 
-3. Restart Hyprland or manually run the command.
+3. If running multiple Hyprland instances, verify which instance is active:
+   ```bash
+   systemctl --user show-environment | grep HYPRLAND_INSTANCE_SIGNATURE
+   ```
 
 ### wakatime-cli not found
 
