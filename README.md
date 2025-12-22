@@ -1,10 +1,10 @@
 # wakatime-focusd
 
-A Hyprland-first systemd user daemon that tracks focused desktop applications and sends heartbeats to [WakaTime](https://wakatime.com).
+A systemd user daemon that tracks focused desktop applications and sends heartbeats to [WakaTime](https://wakatime.com).
 
 ## Features
 
-- **Hyprland IPC integration**: Detects focused windows via Hyprland's socket2 event stream
+- **Hyprland IPC integration**: Detects focused windows via Hyprland's socket2 event stream (currently supported backend)
 - **WakaTime heartbeats**: Sends `--entity-type app` heartbeats using `wakatime-cli`
 - **Smart throttling**: Follows WakaTime's 2-minute rule - only sends when focus changes or after timeout
 - **Idle detection**: Skips heartbeats when session is idle (via systemd-logind `IdleHint`)
@@ -12,7 +12,7 @@ A Hyprland-first systemd user daemon that tracks focused desktop applications an
 
 ## Requirements
 
-- [Hyprland](https://hyprland.org/) window manager
+- [Hyprland](https://hyprland.org/) window manager (currently supported backend)
 - [wakatime-cli](https://wakatime.com/terminal) installed and configured with API key
 - systemd (for user service and idle detection)
 - Rust toolchain (for building)
@@ -37,9 +37,9 @@ systemctl --user daemon-reload
 systemctl --user enable --now wakatime-focusd.service
 ```
 
-### Environment Setup (IMPORTANT)
+### Hyprland Backend Setup (Required)
 
-The daemon requires Hyprland environment variables to be available to the systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+The Hyprland backend requires Hyprland environment variables to be available to the systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
 
 ```
 exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
@@ -64,9 +64,9 @@ track_titles = false
 # Title strategy: "ignore" or "append" (default: "ignore")
 title_strategy = "ignore"
 
-# WakaTime category (default: "coding")
+# Default category for heartbeats when no rule matches (default: "coding")
 # Options: coding, browsing, designing, debugging, communicating, etc.
-category = "coding"
+default_category = "coding"
 
 # Only track these apps (optional, empty = track all)
 # app_allowlist = ["code", "nvim", "emacs"]
@@ -133,7 +133,7 @@ Options:
 
 ## How It Works
 
-1. **Focus Detection**: Connects to Hyprland's `.socket2.sock` and listens for `activewindow>>` events
+1. **Focus Detection**: Currently connects to Hyprland's `.socket2.sock` and listens for `activewindow>>` events
 2. **Event Parsing**: Extracts window class and title from events (handling commas in titles correctly)
 3. **Throttling**: Only sends heartbeats on focus change or after 2 minutes for the same app
 4. **Idle Gating**: Polls systemd-logind's `IdleHint` to skip heartbeats when idle/locked
@@ -160,7 +160,7 @@ Options:
 
 ### Service fails to start
 
-1. Check if Hyprland environment is available:
+1. Check if Hyprland backend environment is available:
    ```bash
    systemctl --user show-environment | grep HYPRLAND
    ```
@@ -200,14 +200,14 @@ Set `wakatime_cli_path` in config if it's in a non-standard location.
 src/
 ├── main.rs              # CLI parsing, logging, event loop
 ├── config.rs            # TOML configuration loading
-├── focus/
-│   ├── mod.rs           # FocusEvent model
-│   └── hyprland_ipc.rs  # Hyprland socket2 backend
-├── idle/
-│   ├── mod.rs           # Idle detection interface
-│   └── logind.rs        # systemd-logind DBus backend
+├── backend/
+│   ├── mod.rs           # FocusSource trait and FocusEvent model
+│   └── hyprland.rs     # Hyprland socket2 backend
+├── domain.rs            # Entity, Category, Heartbeat types
+├── heartbeat.rs         # Heartbeat building logic
+├── idle.rs             # Idle detection interface (systemd-logind DBus backend)
 ├── throttle.rs          # Heartbeat throttle state machine
-└── wakatime.rs          # wakatime-cli invocation
+└── wakatime.rs         # wakatime-cli invocation
 ```
 
 ## Future Plans

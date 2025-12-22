@@ -1,4 +1,4 @@
-//! wakatime-focusd - Hyprland-first systemd user daemon for WakaTime app heartbeats.
+//! wakatime-focusd - Systemd user daemon for WakaTime app heartbeats.
 //!
 //! Tracks currently focused desktop application and sends heartbeats to WakaTime
 //! using wakatime-cli.
