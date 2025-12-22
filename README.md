@@ -37,18 +37,6 @@ systemctl --user daemon-reload
 systemctl --user enable --now wakatime-focusd.service
 ```
 
-### Backend Setup
-
-#### Hyprland
-
-The daemon automatically discovers the Hyprland IPC socket. For multi-instance setups, export environment variables to systemd by adding this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
-
-```
-exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
-```
-
-This is only needed if you run multiple Hyprland instances simultaneously.
-
 ## Configuration
 
 Create `~/.config/wakatime-focusd/config.toml`:
@@ -90,8 +78,6 @@ See `contrib/config.toml` for a fully documented example.
 
 ## Usage
 
-### Running as a service (recommended)
-
 ```bash
 # Start the service
 systemctl --user start wakatime-focusd
@@ -104,33 +90,6 @@ journalctl --user -u wakatime-focusd -f
 
 # Stop the service
 systemctl --user stop wakatime-focusd
-```
-
-### Running interactively
-
-```bash
-# Normal mode
-wakatime-focusd
-
-# Debug mode with event printing
-wakatime-focusd --dry-run --print-events --log-level debug
-
-# Oneshot mode (capture a few events and exit)
-wakatime-focusd --oneshot --print-events
-```
-
-### CLI Options
-
-```
-Options:
-  -c, --config <CONFIG>          Path to config file
-      --dry-run                  Enable dry-run mode (don't send heartbeats)
-      --log-level <LOG_LEVEL>    Log level [default: info]
-      --print-events             Print normalized focus events to stdout
-      --oneshot                  Run in oneshot mode: capture events then exit
-      --oneshot-count <COUNT>    Number of events to capture [default: 5]
-  -h, --help                     Print help
-  -V, --version                  Print version
 ```
 
 ## Troubleshooting
@@ -173,22 +132,6 @@ Set `wakatime_cli_path` in config if it's in a non-standard location.
 2. Check if app is in denylist or not in allowlist
 3. Check idle state: `loginctl show-session --property=IdleHint`
 4. Check logs: `journalctl --user -u wakatime-focusd -f`
-
-## Architecture
-
-```
-src/
-├── main.rs              # CLI parsing, logging, event loop
-├── config.rs            # TOML configuration loading
-├── backend/
-│   ├── mod.rs           # FocusSource trait and FocusEvent model
-│   └── hyprland.rs     # Hyprland socket2 backend
-├── domain.rs            # Entity, Category, Heartbeat types
-├── heartbeat.rs         # Heartbeat building logic
-├── idle.rs             # Idle detection interface (systemd-logind DBus backend)
-├── throttle.rs          # Heartbeat throttle state machine
-└── wakatime.rs         # wakatime-cli invocation
-```
 
 ## Roadmap
 
