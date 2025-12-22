@@ -12,10 +12,25 @@ A systemd user daemon that tracks focused desktop applications and sends heartbe
 
 ## Requirements
 
-- [Hyprland](https://hyprland.org/) window manager (currently supported backend)
 - [wakatime-cli](https://wakatime.com/terminal) installed and configured with API key
 - systemd (for user service and idle detection)
 - Rust toolchain (for building)
+
+## Supported Backends
+
+### Hyprland (current default)
+
+- [Hyprland](https://hyprland.org/) window manager
+
+The Hyprland backend requires Hyprland environment variables to be available to the systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+
+```
+exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
+```
+
+Without this, the service will fail to start because it cannot locate the Hyprland IPC socket.
+
+> Additional backends (wlr-foreign-toplevel, X11, KDE, GNOME) are planned.
 
 ## Installation
 
@@ -36,16 +51,6 @@ cp contrib/wakatime-focusd.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now wakatime-focusd.service
 ```
-
-### Hyprland Backend Setup (Required)
-
-The Hyprland backend requires Hyprland environment variables to be available to the systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
-
-```
-exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
-```
-
-Without this, the service will fail to start because it cannot locate the Hyprland IPC socket.
 
 ## Configuration
 
