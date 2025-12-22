@@ -4,33 +4,18 @@ A systemd user daemon that tracks focused desktop applications and sends heartbe
 
 ## Features
 
-- **Hyprland IPC integration**: Detects focused windows via Hyprland's socket2 event stream (currently supported backend)
-- **WakaTime heartbeats**: Sends `--entity-type app` heartbeats using `wakatime-cli`
-- **Smart throttling**: Follows WakaTime's 2-minute rule - only sends when focus changes or after timeout
-- **Idle detection**: Skips heartbeats when session is idle (via systemd-logind `IdleHint`)
-- **systemd integration**: Runs as a user service with automatic restart
+The daemon monitors your desktop's focused window and sends heartbeats to WakaTime whenever focus changes or after a configurable timeout (default: 2 minutes). Window class names become tracked entity, allowing WakaTime to show which applications you spend time in.
+
+Heartbeats are gated by systemd-logind's `IdleHint`, so no activity is recorded when your session is idle or locked. The daemon runs as a systemd user service with automatic restart on failure.
+
+Currently supports Hyprland via its IPC socket. Additional backends are planned.
 
 ## Requirements
 
 - [wakatime-cli](https://wakatime.com/terminal) installed and configured with API key
 - systemd (for user service and idle detection)
-- Rust toolchain (for building)
-
-## Supported Backends
-
-### Hyprland (current default)
-
-- [Hyprland](https://hyprland.org/) window manager
-
-The Hyprland backend requires Hyprland environment variables to be available to the systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
-
-```
-exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
-```
-
-Without this, the service will fail to start because it cannot locate the Hyprland IPC socket.
-
-> Additional backends (wlr-foreign-toplevel, X11, KDE, GNOME) are planned.
+- A supported window manager (see [Backend Setup](#backend-setup))
+- Rust toolchain (for building from source)
 
 ## Installation
 
@@ -51,6 +36,18 @@ cp contrib/wakatime-focusd.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now wakatime-focusd.service
 ```
+
+### Backend Setup
+
+#### Hyprland
+
+The Hyprland backend requires environment variables to be available to systemd user service. Add this to your Hyprland config (`~/.config/hypr/hyprland.conf`):
+
+```
+exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR
+```
+
+Without this, the service will fail to start because it cannot locate the Hyprland IPC socket.
 
 ## Configuration
 
@@ -136,31 +133,6 @@ Options:
   -V, --version                  Print version
 ```
 
-## How It Works
-
-1. **Focus Detection**: Currently connects to Hyprland's `.socket2.sock` and listens for `activewindow>>` events
-2. **Event Parsing**: Extracts window class and title from events (handling commas in titles correctly)
-3. **Throttling**: Only sends heartbeats on focus change or after 2 minutes for the same app
-4. **Idle Gating**: Polls systemd-logind's `IdleHint` to skip heartbeats when idle/locked
-5. **Heartbeat**: Invokes `wakatime-cli --entity-type app --entity <CLASS> --category <CAT>`
-
-## Manual Testing
-
-1. **Test focus detection**:
-   ```bash
-   wakatime-focusd --dry-run --print-events --log-level debug
-   ```
-   Switch windows and verify events are logged.
-
-2. **Test throttling**:
-   - Focus on one app, verify only 1 heartbeat
-   - Wait 2+ minutes, verify second heartbeat
-   - Switch apps, verify immediate heartbeat
-
-3. **Test idle gating**:
-   - Lock screen or trigger idle
-   - Verify no heartbeats while `IdleHint=true`
-
 ## Troubleshooting
 
 ### Service fails to start
@@ -215,7 +187,7 @@ src/
 └── wakatime.rs         # wakatime-cli invocation
 ```
 
-## Future Plans
+## Roadmap
 
 - [ ] Additional backends (wlr-foreign-toplevel, X11, KDE, GNOME)
 - [ ] Configurable allowlist/denylist patterns (regex)
