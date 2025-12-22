@@ -14,7 +14,6 @@ Currently supports Hyprland via its IPC socket. Additional backends are planned.
 
 - [wakatime-cli](https://wakatime.com/terminal) installed and configured with API key
 - systemd (for user service and idle detection)
-- A supported window manager (see [Backend Setup](#backend-setup))
 - Rust toolchain (for building from source)
 
 ## Installation
