@@ -66,14 +66,11 @@ async fn main() -> Result<()> {
     // Initialize logging
     init_logging(&args.log_level)?;
 
-    info!(
-        "wakatime-focusd v{} starting",
-        env!("CARGO_PKG_VERSION")
-    );
+    info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
     // Check environment
-    let hyprland_available = env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok()
-        && env::var("XDG_RUNTIME_DIR").is_ok();
+    let hyprland_available =
+        env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() && env::var("XDG_RUNTIME_DIR").is_ok();
     if !hyprland_available {
         error!("Hyprland environment not detected.");
         error!("Required environment variables:");
@@ -82,7 +79,9 @@ async fn main() -> Result<()> {
         }
         error!("");
         error!("If running as a systemd user service, ensure these variables are available.");
-        error!("See: dbus-update-activation-environment --systemd HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR");
+        error!(
+            "See: dbus-update-activation-environment --systemd HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR"
+        );
         anyhow::bail!("Hyprland environment not available");
     }
 
@@ -92,8 +91,8 @@ async fn main() -> Result<()> {
     }
 
     // Load config
-    let config = Config::load_or_default(args.config.as_deref())
-        .context("Failed to load configuration")?;
+    let config =
+        Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
 
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
@@ -126,7 +125,7 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
     info!("Running in oneshot mode, capturing {} events", count);
 
     let mut source = HyprlandSource::connect().await?;
-    
+
     // Capture events
     let mut captured = 0;
     while captured < count {
@@ -136,10 +135,7 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
                 if print_events {
                     println!(
                         "[{}] | class={} title={:?} window_id={:?}",
-                        captured,
-                        event.app_class,
-                        event.title,
-                        event.window_id
+                        captured, event.app_class, event.title, event.window_id
                     );
                 } else {
                     info!(
@@ -166,11 +162,13 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
 /// Run daemon event loop.
 async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
     // Initialize components
-    let wakatime_client = WakaTimeClient::from_config(&config)
-        .context("Failed to initialize WakaTime client")?;
+    let wakatime_client =
+        WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
 
     let idle_monitor = Arc::new(IdleMonitor::new());
-    idle_monitor.clone().start_polling(Duration::from_secs(config.idle_check_interval_seconds));
+    idle_monitor
+        .clone()
+        .start_polling(Duration::from_secs(config.idle_check_interval_seconds));
 
     let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
     let heartbeat_builder = HeartbeatBuilder::from_config(&config)?;
@@ -179,7 +177,7 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
 
     loop {
         let mut source = HyprlandSource::connect().await?;
-        
+
         loop {
             tokio::select! {
                 // Handle focus events
@@ -204,20 +202,24 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
 
                 // Periodic heartbeat check (in case no focus changes but time elapsed)
                 _ = tokio::time::sleep(Duration::from_secs(config.heartbeat_interval_seconds)) => {
-                    if let Some(last_heartbeat) = throttle.last_heartbeat() {
-                        if throttle.should_send(&last_heartbeat.entity) == ThrottleDecision::Send {
-                            if idle_monitor.is_idle() {
-                                debug!("Skipping periodic heartbeat: session is idle");
-                                continue;
-                            }
+                    if let Some(last_heartbeat) = throttle.last_heartbeat()
+                        && throttle.should_send(&last_heartbeat.entity) == ThrottleDecision::Send
+                    {
+                        if idle_monitor.is_idle() {
+                            debug!("Skipping periodic heartbeat: session is idle");
+                            continue;
+                        }
 
-                            let periodic_heartbeat = heartbeat_builder.build(last_heartbeat.source.clone());
-                            debug!("Sending periodic heartbeat for: {}", periodic_heartbeat.entity.as_str());
-                            throttle.record_sent(periodic_heartbeat.clone());
+                        let periodic_heartbeat =
+                            heartbeat_builder.build(last_heartbeat.source.clone());
+                        debug!(
+                            "Sending periodic heartbeat for: {}",
+                            periodic_heartbeat.entity.as_str()
+                        );
+                        throttle.record_sent(periodic_heartbeat.clone());
 
-                            if let Err(e) = wakatime_client.send_heartbeat(&periodic_heartbeat).await {
-                                warn!("Failed to send periodic heartbeat: {}", e);
-                            }
+                        if let Err(e) = wakatime_client.send_heartbeat(&periodic_heartbeat).await {
+                            warn!("Failed to send periodic heartbeat: {}", e);
                         }
                     }
                 }

@@ -77,13 +77,17 @@ impl HeartbeatThrottle {
         if elapsed >= threshold {
             debug!(
                 "Same entity '{}', elapsed {:?} >= threshold {:?}, sending",
-                entity.as_str(), elapsed, threshold
+                entity.as_str(),
+                elapsed,
+                threshold
             );
             ThrottleDecision::Send
         } else {
             debug!(
                 "Throttled: same entity '{}', elapsed {:?} < threshold {:?}",
-                entity.as_str(), elapsed, threshold
+                entity.as_str(),
+                elapsed,
+                threshold
             );
             ThrottleDecision::Skip
         }
@@ -122,7 +126,10 @@ mod tests {
     fn test_first_heartbeat_always_sends() {
         let throttle = HeartbeatThrottle::new(120);
         let heartbeat = test_heartbeat("firefox");
-        assert_eq!(throttle.should_send(&heartbeat.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&heartbeat.entity),
+            ThrottleDecision::Send
+        );
     }
 
     #[test]
@@ -131,7 +138,10 @@ mod tests {
 
         // First heartbeat
         let firefox = test_heartbeat("firefox");
-        assert_eq!(throttle.should_send(&firefox.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&firefox.entity),
+            ThrottleDecision::Send
+        );
         throttle.record_sent(firefox);
 
         // Different entity - should send immediately
@@ -144,7 +154,10 @@ mod tests {
         let mut throttle = HeartbeatThrottle::new(120);
         let firefox = test_heartbeat("firefox");
 
-        assert_eq!(throttle.should_send(&firefox.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&firefox.entity),
+            ThrottleDecision::Send
+        );
         throttle.record_sent(firefox);
 
         // Same entity immediately after - should skip
@@ -161,7 +174,10 @@ mod tests {
         let mut throttle = HeartbeatThrottle::new(0);
         let firefox = test_heartbeat("firefox");
 
-        assert_eq!(throttle.should_send(&firefox.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&firefox.entity),
+            ThrottleDecision::Send
+        );
         throttle.record_sent(firefox);
 
         // With 0 second threshold, should send immediately
@@ -179,7 +195,10 @@ mod tests {
 
         // firefox -> code -> firefox
         let firefox1 = test_heartbeat("firefox");
-        assert_eq!(throttle.should_send(&firefox1.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&firefox1.entity),
+            ThrottleDecision::Send
+        );
         throttle.record_sent(firefox1);
 
         let code = test_heartbeat("code");
@@ -188,7 +207,10 @@ mod tests {
 
         // Back to firefox - should send because entity changed
         let firefox2 = test_heartbeat("firefox");
-        assert_eq!(throttle.should_send(&firefox2.entity), ThrottleDecision::Send);
+        assert_eq!(
+            throttle.should_send(&firefox2.entity),
+            ThrottleDecision::Send
+        );
     }
 
     #[test]

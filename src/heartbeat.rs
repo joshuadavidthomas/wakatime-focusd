@@ -50,10 +50,10 @@ impl HeartbeatBuilder {
     /// Check if an app class is allowed based on allowlist/denylist.
     pub fn is_app_allowed(&self, app_class: &str) -> bool {
         // Denylist takes precedence
-        if let Some(ref denylist) = self.app_denylist {
-            if denylist.iter().any(|d| d == app_class) {
-                return false;
-            }
+        if let Some(ref denylist) = self.app_denylist
+            && denylist.iter().any(|d| d == app_class)
+        {
+            return false;
         }
 
         // If allowlist is set, app must be in it
@@ -89,10 +89,10 @@ impl HeartbeatBuilder {
             match self.title_strategy {
                 TitleStrategy::Ignore => Entity::new(event.app_class.clone()),
                 TitleStrategy::Append => {
-                    if let Some(ref title) = event.title {
-                        if !title.is_empty() {
-                            return Entity::new(format!("{} — {}", event.app_class, title));
-                        }
+                    if let Some(ref title) = event.title
+                        && !title.is_empty()
+                    {
+                        return Entity::new(format!("{} — {}", event.app_class, title));
                     }
                     Entity::new(event.app_class.clone())
                 }
@@ -131,17 +131,19 @@ mod tests {
 
     #[test]
     fn test_match_category_with_rules() {
-        let mut config = Config::default();
-        config.category_rules = vec![
-            CategoryRule {
-                pattern: "firefox|chromium".to_string(),
-                category: Category::Browsing,
-            },
-            CategoryRule {
-                pattern: "slack|discord".to_string(),
-                category: Category::Communicating,
-            },
-        ];
+        let config = Config {
+            category_rules: vec![
+                CategoryRule {
+                    pattern: "firefox|chromium".to_string(),
+                    category: Category::Browsing,
+                },
+                CategoryRule {
+                    pattern: "slack|discord".to_string(),
+                    category: Category::Communicating,
+                },
+            ],
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
@@ -153,11 +155,13 @@ mod tests {
 
     #[test]
     fn test_match_category_case_insensitive() {
-        let mut config = Config::default();
-        config.category_rules = vec![CategoryRule {
-            pattern: "firefox".to_string(),
-            category: Category::Browsing,
-        }];
+        let config = Config {
+            category_rules: vec![CategoryRule {
+                pattern: "firefox".to_string(),
+                category: Category::Browsing,
+            }],
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
@@ -179,17 +183,15 @@ mod tests {
 
     #[test]
     fn test_build_entity_with_title_ignore() {
-        let mut config = Config::default();
-        config.track_titles = true;
-        config.title_strategy = TitleStrategy::Ignore;
+        let config = Config {
+            track_titles: true,
+            title_strategy: TitleStrategy::Ignore,
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
-        let event = FocusEvent::new(
-            "code".to_string(),
-            Some("main.rs".to_string()),
-            None,
-        );
+        let event = FocusEvent::new("code".to_string(), Some("main.rs".to_string()), None);
         let entity = builder.build_entity(&event);
 
         assert_eq!(entity.as_str(), "code");
@@ -197,17 +199,15 @@ mod tests {
 
     #[test]
     fn test_build_entity_with_title_append() {
-        let mut config = Config::default();
-        config.track_titles = true;
-        config.title_strategy = TitleStrategy::Append;
+        let config = Config {
+            track_titles: true,
+            title_strategy: TitleStrategy::Append,
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
-        let event = FocusEvent::new(
-            "code".to_string(),
-            Some("main.rs".to_string()),
-            None,
-        );
+        let event = FocusEvent::new("code".to_string(), Some("main.rs".to_string()), None);
         let entity = builder.build_entity(&event);
 
         assert_eq!(entity.as_str(), "code — main.rs");
@@ -224,8 +224,10 @@ mod tests {
 
     #[test]
     fn test_is_app_allowed_with_denylist() {
-        let mut config = Config::default();
-        config.app_denylist = Some(vec!["slack".to_string()]);
+        let config = Config {
+            app_denylist: Some(vec!["slack".to_string()]),
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
@@ -235,8 +237,10 @@ mod tests {
 
     #[test]
     fn test_is_app_allowed_with_allowlist() {
-        let mut config = Config::default();
-        config.app_allowlist = Some(vec!["code".to_string(), "firefox".to_string()]);
+        let config = Config {
+            app_allowlist: Some(vec!["code".to_string(), "firefox".to_string()]),
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 
@@ -247,9 +251,11 @@ mod tests {
 
     #[test]
     fn test_is_app_allowed_denylist_overrides_allowlist() {
-        let mut config = Config::default();
-        config.app_allowlist = Some(vec!["firefox".to_string(), "code".to_string()]);
-        config.app_denylist = Some(vec!["firefox".to_string()]);
+        let config = Config {
+            app_allowlist: Some(vec!["firefox".to_string(), "code".to_string()]),
+            app_denylist: Some(vec!["firefox".to_string()]),
+            ..Default::default()
+        };
 
         let builder = HeartbeatBuilder::from_config(&config).unwrap();
 

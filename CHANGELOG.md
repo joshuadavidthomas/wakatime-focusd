@@ -18,6 +18,14 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions CI workflows for testing and linting
+
+### Fixed
+
+- Clippy warnings for collapsible if statements, filter_map identity, and struct initialization
+
 ## [0.1.1]
 
 ### Changed

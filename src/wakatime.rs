@@ -95,21 +95,21 @@ impl WakaTimeClient {
 
             // Rate-limit error logging
             let count = ERROR_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
-            if count < 5 || count % ERROR_LOG_RATE_LIMIT == 0 {
+            if count < 5 || count.is_multiple_of(ERROR_LOG_RATE_LIMIT) {
                 error!(
                     "wakatime-cli failed (exit code {:?}): {}",
                     result.status.code(),
                     stderr.trim()
                 );
                 if count == 5 {
-                    warn!("Rate-limiting error logs (showing every {}th error)", ERROR_LOG_RATE_LIMIT);
+                    warn!(
+                        "Rate-limiting error logs (showing every {}th error)",
+                        ERROR_LOG_RATE_LIMIT
+                    );
                 }
             }
 
-            anyhow::bail!(
-                "wakatime-cli exited with code {:?}",
-                result.status.code()
-            )
+            anyhow::bail!("wakatime-cli exited with code {:?}", result.status.code())
         }
     }
 }
@@ -121,7 +121,10 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
         if path.exists() {
             return Ok(path.clone());
         }
-        anyhow::bail!("Configured wakatime-cli path does not exist: {}", path.display());
+        anyhow::bail!(
+            "Configured wakatime-cli path does not exist: {}",
+            path.display()
+        );
     }
 
     // Search PATH
@@ -144,12 +147,12 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
             for entry in entries.flatten() {
                 let name = entry.file_name();
                 let name_str = name.to_string_lossy();
-                if name_str.starts_with("wakatime-cli") && !name_str.ends_with(".zip") {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_file() {
-                            return Ok(entry.path());
-                        }
-                    }
+                if name_str.starts_with("wakatime-cli")
+                    && !name_str.ends_with(".zip")
+                    && let Ok(meta) = entry.metadata()
+                    && meta.is_file()
+                {
+                    return Ok(entry.path());
                 }
             }
         }
@@ -160,4 +163,3 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
          See https://wakatime.com/terminal"
     )
 }
-
