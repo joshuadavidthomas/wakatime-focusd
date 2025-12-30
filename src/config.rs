@@ -162,9 +162,6 @@ mod tests {
         assert_eq!(config.category_rules[1].pattern, "slack|discord");
         assert_eq!(config.category_rules[1].category, Category::Communicating);
         assert!(config.dry_run);
-        assert_eq!(
-            config.app_denylist,
-            Some(vec!["spotify".to_string()])
-        );
+        assert_eq!(config.app_denylist, Some(vec!["spotify".to_string()]));
     }
 }

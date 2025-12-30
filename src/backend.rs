@@ -25,11 +25,7 @@ pub struct FocusEvent {
 
 impl FocusEvent {
     /// Create a new focus event.
-    pub fn new(
-        app_class: String,
-        title: Option<String>,
-        window_id: Option<String>,
-    ) -> Self {
+    pub fn new(app_class: String, title: Option<String>, window_id: Option<String>) -> Self {
         Self {
             app_class,
             title,

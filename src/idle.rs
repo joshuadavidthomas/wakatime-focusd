@@ -4,8 +4,8 @@
 
 use anyhow::{Context, Result};
 use std::env;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, trace, warn};
@@ -101,7 +101,10 @@ impl IdleMonitor {
         tokio::spawn(async move {
             // Try to initialize
             if let Err(e) = monitor.init().await {
-                error!("Failed to initialize idle monitor: {}. Disabling idle gating.", e);
+                error!(
+                    "Failed to initialize idle monitor: {}. Disabling idle gating.",
+                    e
+                );
                 monitor.disable();
                 return;
             }
@@ -134,14 +137,9 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
 
         const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
 
-        let proxy = zbus::Proxy::new(
-            conn,
-            LOGIND_SERVICE,
-            LOGIND_PATH,
-            MANAGER_INTERFACE,
-        )
-        .await
-        .context("Failed to create Manager proxy")?;
+        let proxy = zbus::Proxy::new(conn, LOGIND_SERVICE, LOGIND_PATH, MANAGER_INTERFACE)
+            .await
+            .context("Failed to create Manager proxy")?;
 
         let path: zbus::zvariant::OwnedObjectPath = proxy
             .call("GetSession", &(&session_id,))
@@ -166,7 +164,9 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
         return Ok(auto_path);
     }
 
-    anyhow::bail!("Could not resolve session path. Set XDG_SESSION_ID or ensure logind session is available.")
+    anyhow::bail!(
+        "Could not resolve session path. Set XDG_SESSION_ID or ensure logind session is available."
+    )
 }
 
 /// Get the IdleHint property from a session.
@@ -174,14 +174,9 @@ async fn get_idle_hint(conn: &Connection, session_path: &str) -> Result<bool> {
     const SESSION_INTERFACE: &str = "org.freedesktop.login1.Session";
     const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
 
-    let proxy = zbus::Proxy::new(
-        conn,
-        LOGIND_SERVICE,
-        session_path,
-        PROPERTIES_INTERFACE,
-    )
-    .await
-    .context("Failed to create Properties proxy")?;
+    let proxy = zbus::Proxy::new(conn, LOGIND_SERVICE, session_path, PROPERTIES_INTERFACE)
+        .await
+        .context("Failed to create Properties proxy")?;
 
     let value: zbus::zvariant::OwnedValue = proxy
         .call("Get", &(SESSION_INTERFACE, "IdleHint"))

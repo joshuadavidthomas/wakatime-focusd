@@ -78,10 +78,7 @@ impl HyprlandSource {
     async fn reconnect(&mut self) -> Result<(), FocusError> {
         const MAX_BACKOFF: Duration = Duration::from_secs(5);
 
-        warn!(
-            "Socket2 connection lost. Retrying in {:?}...",
-            self.backoff
-        );
+        warn!("Socket2 connection lost. Retrying in {:?}...", self.backoff);
 
         tokio::time::sleep(self.backoff).await;
 
@@ -166,7 +163,10 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
     if let Ok(sig) = env::var("HYPRLAND_INSTANCE_SIGNATURE") {
         let path = hypr_dir.join(&sig).join(".socket2.sock");
         if path.exists() {
-            info!("Using Hyprland socket from HYPRLAND_INSTANCE_SIGNATURE: {}", path.display());
+            info!(
+                "Using Hyprland socket from HYPRLAND_INSTANCE_SIGNATURE: {}",
+                path.display()
+            );
             return Ok(path);
         }
         warn!(
@@ -187,13 +187,10 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
                         .map(|mtime| (path, mtime))
                 })
             })
-            .filter_map(|o| o)
+            .flatten()
             .collect();
 
-        if let Some((path, _mtime)) = sockets
-            .into_iter()
-            .max_by_key(|(_p, mtime)| *mtime)
-        {
+        if let Some((path, _mtime)) = sockets.into_iter().max_by_key(|(_p, mtime)| *mtime) {
             info!("Discovered Hyprland socket via glob: {}", path.display());
             return Ok(path);
         }
