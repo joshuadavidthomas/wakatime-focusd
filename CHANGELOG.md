@@ -18,6 +18,8 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+## [0.1.1]
+
 ### Changed
 
 - **Internal**: Refactored module structure from `mod.rs` pattern to named modules
@@ -41,5 +43,6 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 - Josh Thomas <josh@joshthomas.dev> (maintainer)
 
-[unreleased]: https://github.com/joshuadavidthomas/wakatime-focusd/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/joshuadavidthomas/wakatime-focusd/compare/v0.1.1...HEAD
 [0.1.0]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.0
+[0.1.1]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.1
