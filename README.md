@@ -47,29 +47,58 @@ heartbeat_interval_seconds = 120
 # Minimum seconds before resending for same entity (default: 120)
 min_entity_resend_seconds = 120
 
-# Include window titles (default: false, may contain sensitive info)
+# Whether to include window titles in tracking (default: false)
+# WARNING: Titles may contain sensitive information (file paths, URLs, etc.)
 track_titles = false
 
-# Title strategy: "ignore" or "append" (default: "ignore")
+# How to handle titles when track_titles is true (default: "ignore")
+# Options: "ignore" | "append"
+# "append" creates entities like "Class — Title" (high cardinality warning)
 title_strategy = "ignore"
 
 # Default category for heartbeats when no rule matches (default: "coding")
-# Options: coding, browsing, designing, debugging, communicating, etc.
+# Valid options: coding, building, indexing, debugging, browsing, running tests,
+# writing tests, manual testing, writing docs, code reviewing, communicating,
+# notes, researching, learning, designing, ai coding
+# See: https://wakatime.com/developers#heartbeats
 default_category = "coding"
 
-# Only track these apps (optional, empty = track all)
-# app_allowlist = ["code", "nvim", "emacs"]
+# Category rules - first match wins (case-insensitive regex)
+# [[category_rules]]
+# pattern = "firefox|chromium|brave|zen-browser"
+# category = "browsing"
+#
+# [[category_rules]]
+# pattern = "thunderbird|evolution|geary"
+# category = "communicating"
+#
+# [[category_rules]]
+# pattern = "slack|discord|element"
+# category = "communicating"
+#
+# [[category_rules]]
+# pattern = "figma|inkscape|gimp"
+# category = "designing"
 
-# Never track these apps (optional)
-# app_denylist = ["slack", "discord"]
+# Optional: Only track these app classes (empty = track all)
+# app_allowlist = ["code", "codium", "nvim", "vim", "emacs"]
 
-# Path to wakatime-cli (optional, searches PATH by default)
+# Optional: Never track these app classes
+# app_denylist = ["slack", "discord", "spotify"]
+
+# Path to wakatime-cli binary (optional)
+# If not set, searches PATH and ~/.wakatime/
 # wakatime_cli_path = "/usr/bin/wakatime-cli"
 
+# Path to wakatime config file (optional)
+# Forwarded to wakatime-cli --config
+# wakatime_config_path = "/home/user/.wakatime.cfg"
+
 # Idle check interval in seconds (default: 10)
+# How often to poll systemd-logind for idle state.
 idle_check_interval_seconds = 10
 
-# Dry run mode (default: false)
+# Dry run mode: log commands instead of executing (default: false)
 dry_run = false
 ```
 
