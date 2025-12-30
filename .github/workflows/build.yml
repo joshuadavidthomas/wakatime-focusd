@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -11,6 +15,10 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -20,8 +28,16 @@ jobs:
       - name: Build release binary
         run: cargo build --release
 
+      - name: Rename binary with target
+        run: cp target/release/wakatime-focusd wakatime-focusd-x86_64-unknown-linux-gnu
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: wakatime-focusd-x86_64-unknown-linux-gnu
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: wakatime-focusd-x86_64-unknown-linux-gnu
-          path: target/release/wakatime-focusd
+          name: binary-x86_64-unknown-linux-gnu
+          path: wakatime-focusd-x86_64-unknown-linux-gnu
