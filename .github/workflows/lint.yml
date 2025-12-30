@@ -23,7 +23,6 @@ jobs:
         run: cargo fmt --all --check
 
   clippy:
-    name: Clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
