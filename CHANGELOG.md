@@ -18,6 +18,10 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Changed
+
+- **Internal**: Refactored module structure from `mod.rs` pattern to named modules
+
 ## [0.1.0]
 
 ### Added
