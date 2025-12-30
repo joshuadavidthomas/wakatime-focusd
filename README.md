@@ -169,4 +169,4 @@ Set `wakatime_cli_path` in config if it's in a non-standard location.
 
 ## License
 
-MIT
+wakatime-focusd is licensed under the MIT license. See the [`LICENSE`](LICENSE) file for more information.
