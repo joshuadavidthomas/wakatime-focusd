@@ -48,4 +48,4 @@ jobs:
         run: |
           gh release create ${{ steps.version.outputs.version }} \
             --generate-notes \
-            binary-*/*
+            wakatime-focusd-*/*
