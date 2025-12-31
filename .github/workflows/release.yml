@@ -20,6 +20,8 @@ jobs:
       attestations: write
       contents: read
       id-token: write
+    with:
+      version: ${{ github.event.pull_request.head.ref }}
 
   release:
     runs-on: ubuntu-latest

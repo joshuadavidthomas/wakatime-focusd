@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -15,10 +20,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      attestations: write
-      contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -31,13 +32,24 @@ jobs:
       - name: Rename binary with target
         run: cp target/release/wakatime-focusd wakatime-focusd-x86_64-unknown-linux-gnu
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v3
-        with:
-          subject-path: wakatime-focusd-x86_64-unknown-linux-gnu
-
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: binary-x86_64-unknown-linux-gnu
           path: wakatime-focusd-x86_64-unknown-linux-gnu
+
+  attest:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.version != '' }}
+    needs: build
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: binary-*/*
