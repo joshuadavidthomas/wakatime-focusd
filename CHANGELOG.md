@@ -21,6 +21,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 ### Added
 
 - GitHub Actions CI workflows for testing and linting
+- GitHub Actions workflows for building and releasing with automated binary artifacts
 
 ### Fixed
 
