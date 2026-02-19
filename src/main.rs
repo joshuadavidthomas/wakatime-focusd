@@ -173,7 +173,8 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
 
     let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
     let heartbeat_builder = HeartbeatBuilder::from_config(&config)?;
-    let mut periodic_timer = tokio::time::interval(Duration::from_secs(config.heartbeat_interval_seconds));
+    let mut periodic_timer =
+        tokio::time::interval(Duration::from_secs(config.heartbeat_interval_seconds));
     periodic_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     info!("Daemon started, waiting for focus events...");

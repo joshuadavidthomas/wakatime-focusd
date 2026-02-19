@@ -58,9 +58,7 @@ impl HeartbeatBuilder {
 
         // If allowlist is set, app must be in it
         if let Some(ref allowlist) = self.app_allowlist {
-            return allowlist
-                .iter()
-                .any(|a| a.eq_ignore_ascii_case(app_class));
+            return allowlist.iter().any(|a| a.eq_ignore_ascii_case(app_class));
         }
 
         // No allowlist means all apps are allowed (unless denylisted)

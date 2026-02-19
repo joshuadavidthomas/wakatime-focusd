@@ -83,7 +83,11 @@ impl WakaTimeClient {
             .arg("--entity")
             .arg(heartbeat.entity.as_str())
             .arg("--plugin")
-            .arg(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
+            .arg(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
             .arg("--category")
             .arg(heartbeat.category.as_str());
 
