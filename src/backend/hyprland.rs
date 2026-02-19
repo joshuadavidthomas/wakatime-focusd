@@ -257,8 +257,6 @@ fn parse_event_line(line: &str) -> HyprlandEvent {
 /// so we need to correlate them.
 #[derive(Debug, Default)]
 struct FocusState {
-    current_class: Option<String>,
-    current_title: Option<String>,
     current_address: Option<String>,
 }
 
@@ -269,9 +267,6 @@ impl FocusState {
             HyprlandEvent::ActiveWindow { class, title } => {
                 // activewindow comes before activewindowv2, so store and wait
                 // But also emit immediately since we have the essential info
-                self.current_class = Some(class.clone());
-                self.current_title = Some(title.clone());
-
                 // Create event with whatever address we have (might be stale)
                 if class.is_empty() {
                     // Empty class means no focus (e.g., switching to empty workspace)

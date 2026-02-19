@@ -69,8 +69,7 @@ async fn main() -> Result<()> {
     info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
     // Check environment
-    let hyprland_available =
-        env::var("HYPRLAND_INSTANCE_SIGNATURE").is_ok() && env::var("XDG_RUNTIME_DIR").is_ok();
+    let hyprland_available = env::var("XDG_RUNTIME_DIR").is_ok();
     if !hyprland_available {
         error!("Hyprland environment not detected.");
         error!("Required environment variables:");
@@ -79,9 +78,7 @@ async fn main() -> Result<()> {
         }
         error!("");
         error!("If running as a systemd user service, ensure these variables are available.");
-        error!(
-            "See: dbus-update-activation-environment --systemd HYPRLAND_INSTANCE_SIGNATURE XDG_RUNTIME_DIR"
-        );
+        error!("See: dbus-update-activation-environment --systemd XDG_RUNTIME_DIR");
         anyhow::bail!("Hyprland environment not available");
     }
 
@@ -91,8 +88,12 @@ async fn main() -> Result<()> {
     }
 
     // Load config
-    let config =
+    let mut config =
         Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
+
+    if args.dry_run {
+        config.dry_run = true;
+    }
 
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
@@ -216,10 +217,9 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
                             "Sending periodic heartbeat for: {}",
                             periodic_heartbeat.entity.as_str()
                         );
-                        throttle.record_sent(periodic_heartbeat.clone());
-
-                        if let Err(e) = wakatime_client.send_heartbeat(&periodic_heartbeat).await {
-                            warn!("Failed to send periodic heartbeat: {}", e);
+                        match wakatime_client.send_heartbeat(&periodic_heartbeat).await {
+                            Ok(()) => throttle.record_sent(periodic_heartbeat),
+                            Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
                         }
                     }
                 }
@@ -270,10 +270,10 @@ async fn handle_focus_event(
     match throttle.should_send(&heartbeat.entity) {
         ThrottleDecision::Send => {
             debug!("Sending heartbeat for: {}", heartbeat.entity.as_str());
-            throttle.record_sent(heartbeat.clone());
-
             if let Err(e) = wakatime_client.send_heartbeat(&heartbeat).await {
                 warn!("Failed to send heartbeat: {}", e);
+            } else {
+                throttle.record_sent(heartbeat);
             }
         }
         ThrottleDecision::Skip => {
