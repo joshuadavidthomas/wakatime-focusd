@@ -1,13 +1,13 @@
-//! Domain types for WakaTime heartbeats.
+//! Domain types for `WakaTime` heartbeats.
 
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::backend::FocusEvent;
 
-/// WakaTime activity category.
+/// `WakaTime` activity category.
 ///
-/// See: https://wakatime.com/developers#heartbeats
+/// See: <https://wakatime.com/developers#heartbeats>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Category {
@@ -31,7 +31,7 @@ pub enum Category {
 }
 
 impl Category {
-    /// Get the category as a string for WakaTime API.
+    /// Get the category as a string for `WakaTime` API.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Coding => "coding",
@@ -54,7 +54,7 @@ impl Category {
     }
 }
 
-/// Entity sent to WakaTime (newtype for type safety).
+/// Entity sent to `WakaTime` (newtype for type safety).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Entity(String);
 
@@ -82,7 +82,7 @@ impl From<&str> for Entity {
     }
 }
 
-/// Complete heartbeat ready to send to WakaTime.
+/// Complete heartbeat ready to send to `WakaTime`.
 #[derive(Debug, Clone)]
 pub struct Heartbeat {
     /// The entity (app name or app + title).

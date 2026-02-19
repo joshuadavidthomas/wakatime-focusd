@@ -50,7 +50,7 @@ impl HyprlandSource {
         let mut diags = Vec::new();
 
         match env::var("XDG_RUNTIME_DIR") {
-            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={}", v)),
+            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={v}")),
             Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
         }
 
@@ -66,7 +66,7 @@ impl HyprlandSource {
 
         match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
             Ok(v) => {
-                diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={} (set)", v));
+                diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={v} (set)"));
             }
             Err(_) => {
                 diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET (will auto-discover)".to_string());
@@ -110,12 +110,9 @@ impl HyprlandSource {
 impl FocusSource for HyprlandSource {
     async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
         loop {
-            let reader = match &mut self.reader {
-                Some(r) => r,
-                None => {
-                    self.reconnect().await?;
-                    continue;
-                }
+            let reader = if let Some(r) = &mut self.reader { r } else {
+                self.reconnect().await?;
+                continue;
             };
 
             let mut line = String::new();
@@ -153,7 +150,7 @@ impl FocusSource for HyprlandSource {
 
 /// Get the path to Hyprland's socket2.
 ///
-/// First tries HYPRLAND_INSTANCE_SIGNATURE env var (for multi-instance setups),
+/// First tries `HYPRLAND_INSTANCE_SIGNATURE` env var (for multi-instance setups),
 /// then falls back to discovering the most recently modified socket.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
@@ -185,7 +182,7 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
 
     if let Ok(entries) = std::fs::read_dir(&hypr_dir) {
         let sockets: Vec<(PathBuf, std::time::SystemTime)> = entries
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|e| {
                 let path = e.path().join(".socket2.sock");
                 path.exists().then(|| {
@@ -269,7 +266,7 @@ struct FocusState {
 }
 
 impl FocusState {
-    /// Update state and return a FocusEvent if we have enough info.
+    /// Update state and return a `FocusEvent` if we have enough info.
     fn update(&mut self, event: HyprlandEvent) -> Option<FocusEvent> {
         match event {
             HyprlandEvent::ActiveWindow { class, title } => {
@@ -448,8 +445,8 @@ mod tests {
         let mut state = FocusState::default();
 
         let event = HyprlandEvent::ActiveWindow {
-            class: "".to_string(),
-            title: "".to_string(),
+            class: String::new(),
+            title: String::new(),
         };
 
         assert!(
@@ -507,8 +504,8 @@ mod tests {
         assert!(
             state
                 .update(HyprlandEvent::ActiveWindow {
-                    class: "".to_string(),
-                    title: "".to_string()
+                    class: String::new(),
+                    title: String::new()
                 })
                 .is_none()
         );

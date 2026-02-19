@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::domain::Category;
 
-/// Title handling strategy when track_titles is enabled.
+/// Title handling strategy when `track_titles` is enabled.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TitleStrategy {
@@ -24,7 +24,7 @@ pub enum TitleStrategy {
 /// Category rule for pattern-based category assignment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryRule {
-    /// Regex pattern to match app_class (case-insensitive).
+    /// Regex pattern to match `app_class` (case-insensitive).
     pub pattern: String,
     /// Category to assign when pattern matches.
     pub category: Category,
@@ -43,7 +43,7 @@ pub struct Config {
     /// Whether to include window titles in tracking (default: false).
     pub track_titles: bool,
 
-    /// How to handle titles when track_titles is true.
+    /// How to handle titles when `track_titles` is true.
     pub title_strategy: TitleStrategy,
 
     /// Default category for apps that don't match any rule (default: "coding").

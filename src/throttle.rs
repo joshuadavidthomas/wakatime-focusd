@@ -1,8 +1,8 @@
 //! Heartbeat throttling state machine.
 //!
-//! Implements WakaTime's throttling rules:
+//! Implements `WakaTime`'s throttling rules:
 //! - Send immediately on focus/entity change
-//! - Send again if >= min_resend_seconds since last send for same entity
+//! - Send again if >= `min_resend_seconds` since last send for same entity
 
 use std::time::Duration;
 use std::time::Instant;

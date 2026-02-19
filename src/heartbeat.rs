@@ -19,7 +19,7 @@ struct CompiledRule {
     category: Category,
 }
 
-/// Constructs Heartbeats from FocusEvents using configured rules.
+/// Constructs Heartbeats from `FocusEvents` using configured rules.
 pub struct HeartbeatBuilder {
     rules: Vec<CompiledRule>,
     default_category: Category,
@@ -71,7 +71,7 @@ impl HeartbeatBuilder {
         true
     }
 
-    /// Construct a Heartbeat from a FocusEvent.
+    /// Construct a Heartbeat from a `FocusEvent`.
     pub fn build(&self, event: FocusEvent) -> Heartbeat {
         let category = self.match_category(&event.app_class);
         let entity = self.build_entity(&event);

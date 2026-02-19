@@ -1,6 +1,6 @@
-//! wakatime-focusd - Systemd user daemon for WakaTime app heartbeats.
+//! wakatime-focusd - Systemd user daemon for `WakaTime` app heartbeats.
 //!
-//! Tracks currently focused desktop application and sends heartbeats to WakaTime
+//! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
 //! using wakatime-cli.
 
 mod backend;
@@ -35,9 +35,9 @@ use crate::throttle::HeartbeatThrottle;
 use crate::throttle::ThrottleDecision;
 use crate::wakatime::WakaTimeClient;
 
-/// WakaTime focus daemon for Hyprland.
+/// `WakaTime` focus daemon for Hyprland.
 ///
-/// Tracks currently focused desktop application and sends heartbeats to WakaTime.
+/// Tracks currently focused desktop application and sends heartbeats to `WakaTime`.
 #[derive(Parser, Debug)]
 #[command(name = "wakatime-focusd")]
 #[command(author, version, about, long_about = None)]
@@ -116,7 +116,7 @@ async fn main() -> Result<()> {
 
 /// Initialize logging with the specified level.
 fn init_logging(level: &str) -> Result<()> {
-    let filter = EnvFilter::try_new(format!("wakatime_focusd={}", level))
+    let filter = EnvFilter::try_new(format!("wakatime_focusd={level}"))
         .or_else(|_| EnvFilter::try_new("info"))
         .context("Invalid log level")?;
 

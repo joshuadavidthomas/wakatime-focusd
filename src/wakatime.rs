@@ -1,4 +1,4 @@
-//! WakaTime CLI invocation.
+//! `WakaTime` CLI invocation.
 //!
 //! Builds and spawns wakatime-cli commands for sending heartbeats.
 
@@ -23,7 +23,7 @@ use crate::domain::Heartbeat;
 static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
 const ERROR_LOG_RATE_LIMIT: u32 = 10; // Log every Nth error after initial burst
 
-/// WakaTime CLI client.
+/// `WakaTime` CLI client.
 #[derive(Debug)]
 pub struct WakaTimeClient {
     /// Path to wakatime-cli binary.
@@ -37,7 +37,7 @@ pub struct WakaTimeClient {
 }
 
 impl WakaTimeClient {
-    /// Create a new WakaTime client from config.
+    /// Create a new `WakaTime` client from config.
     pub fn from_config(config: &Config) -> Result<Self> {
         let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_ref())?;
         info!("Using wakatime-cli: {}", cli_path.display());
