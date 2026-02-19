@@ -265,14 +265,17 @@ impl FocusState {
     fn update(&mut self, event: HyprlandEvent) -> Option<FocusEvent> {
         match event {
             HyprlandEvent::ActiveWindow { class, title } => {
+                let class = class.trim();
+
                 // activewindow carries class/title; attach the latest known address
                 // from activewindowv2 if available.
                 if class.is_empty() {
                     // Empty class means no focus (e.g., switching to empty workspace)
+                    self.current_address = None;
                     None
                 } else {
                     Some(FocusEvent::new(
-                        class,
+                        class.to_string(),
                         if title.is_empty() { None } else { Some(title) },
                         self.current_address.clone(),
                     ))
@@ -448,6 +451,21 @@ mod tests {
     }
 
     #[test]
+    fn test_focus_state_whitespace_class() {
+        let mut state = FocusState::default();
+
+        let event = HyprlandEvent::ActiveWindow {
+            class: "   ".to_string(),
+            title: "title".to_string(),
+        };
+
+        assert!(
+            state.update(event).is_none(),
+            "Whitespace-only class should not produce event"
+        );
+    }
+
+    #[test]
     fn test_focus_state_v2_updates_address() {
         let mut state = FocusState::default();
 
@@ -464,5 +482,36 @@ mod tests {
         };
         let focus = state.update(event).expect("Should produce focus event");
         assert_eq!(focus.window_id, Some("0xabc123".to_string()));
+    }
+
+    #[test]
+    fn test_focus_state_empty_focus_clears_stale_address() {
+        let mut state = FocusState::default();
+
+        assert!(
+            state
+                .update(HyprlandEvent::ActiveWindowV2 {
+                    address: "0xold".to_string()
+                })
+                .is_none()
+        );
+
+        assert!(
+            state
+                .update(HyprlandEvent::ActiveWindow {
+                    class: "".to_string(),
+                    title: "".to_string()
+                })
+                .is_none()
+        );
+
+        let next_focus = state
+            .update(HyprlandEvent::ActiveWindow {
+                class: "code".to_string(),
+                title: "main.rs".to_string(),
+            })
+            .expect("Should produce focus event");
+
+        assert_eq!(next_focus.window_id, None);
     }
 }

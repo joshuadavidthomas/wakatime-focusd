@@ -132,11 +132,11 @@ impl WakaTimeClient {
 fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
     // Use configured path if provided
     if let Some(path) = configured_path {
-        if path.exists() {
+        if path.is_file() {
             return Ok(path.clone());
         }
         anyhow::bail!(
-            "Configured wakatime-cli path does not exist: {}",
+            "Configured wakatime-cli path is not a file: {}",
             path.display()
         );
     }
@@ -152,7 +152,7 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
 
         // Try exact name first
         let exact = wakatime_dir.join("wakatime-cli");
-        if exact.exists() {
+        if exact.is_file() {
             return Ok(exact);
         }
 
