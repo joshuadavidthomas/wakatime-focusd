@@ -31,7 +31,7 @@ pub struct HeartbeatBuilder {
 
 impl HeartbeatBuilder {
     /// Build from config, compiling regexes and validating.
-    pub fn from_config(config: &Config) -> Result<Self> {
+    pub fn from_config(config: &Config) -> Self {
         let mut rules = Vec::new();
 
         for rule in &config.category_rules {
@@ -43,14 +43,14 @@ impl HeartbeatBuilder {
             }
         }
 
-        Ok(Self {
+        Self {
             rules,
             default_category: config.default_category,
             track_titles: config.track_titles,
             title_strategy: config.title_strategy.clone(),
             app_allowlist: config.app_allowlist.clone(),
             app_denylist: config.app_denylist.clone(),
-        })
+        }
     }
 
     /// Check if an app class is allowed based on allowlist/denylist.
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn test_match_category_default() {
         let config = Config::default();
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert_eq!(builder.match_category("code"), Category::Coding);
         assert_eq!(builder.match_category("firefox"), Category::Coding);
@@ -151,7 +151,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert_eq!(builder.match_category("firefox"), Category::Browsing);
         assert_eq!(builder.match_category("chromium"), Category::Browsing);
@@ -169,7 +169,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert_eq!(builder.match_category("Firefox"), Category::Browsing);
         assert_eq!(builder.match_category("FIREFOX"), Category::Browsing);
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     fn test_build_entity_no_title() {
         let config = Config::default();
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         let event = FocusEvent::new("code".to_string(), None, None);
         let entity = builder.build_entity(&event);
@@ -195,7 +195,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         let event = FocusEvent::new("code".to_string(), Some("main.rs".to_string()), None);
         let entity = builder.build_entity(&event);
@@ -211,7 +211,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         let event = FocusEvent::new("code".to_string(), Some("main.rs".to_string()), None);
         let entity = builder.build_entity(&event);
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn test_is_app_allowed_no_filters() {
         let config = Config::default();
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert!(builder.is_app_allowed("firefox"));
         assert!(builder.is_app_allowed("code"));
@@ -235,7 +235,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert!(builder.is_app_allowed("firefox"));
         assert!(!builder.is_app_allowed("slack"));
@@ -248,7 +248,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert!(builder.is_app_allowed("firefox"));
         assert!(builder.is_app_allowed("code"));
@@ -263,7 +263,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert!(builder.is_app_allowed("code"));
         assert!(!builder.is_app_allowed("slack"));
@@ -277,7 +277,7 @@ mod tests {
             ..Default::default()
         };
 
-        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+        let builder = HeartbeatBuilder::from_config(&config);
 
         assert!(!builder.is_app_allowed("firefox"));
         assert!(builder.is_app_allowed("code"));

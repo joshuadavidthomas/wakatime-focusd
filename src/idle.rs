@@ -21,6 +21,7 @@ use zbus::Connection;
 /// `DBus` service and path for login1.
 const LOGIND_SERVICE: &str = "org.freedesktop.login1";
 const LOGIND_PATH: &str = "/org/freedesktop/login1";
+const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
 
 /// Idle monitor that polls systemd-logind for idle state.
 pub struct IdleMonitor {
@@ -141,8 +142,6 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     // First try XDG_SESSION_ID if available
     if let Ok(session_id) = env::var("XDG_SESSION_ID") {
         debug!("Using XDG_SESSION_ID: {}", session_id);
-
-        const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
 
         let proxy = zbus::Proxy::new(conn, LOGIND_SERVICE, LOGIND_PATH, MANAGER_INTERFACE)
             .await

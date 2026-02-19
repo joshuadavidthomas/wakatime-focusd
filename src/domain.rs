@@ -32,7 +32,7 @@ pub enum Category {
 
 impl Category {
     /// Get the category as a string for `WakaTime` API.
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::Coding => "coding",
             Self::Building => "building",

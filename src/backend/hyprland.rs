@@ -110,7 +110,7 @@ impl HyprlandSource {
 impl FocusSource for HyprlandSource {
     async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
         loop {
-            let reader = if let Some(r) = &mut self.reader { r } else {
+            let Some(reader) = &mut self.reader else {
                 self.reconnect().await?;
                 continue;
             };
@@ -122,7 +122,6 @@ impl FocusSource for HyprlandSource {
                     warn!("Socket2 stream ended (EOF)");
                     self.reader = None;
                     self.reconnect().await?;
-                    continue;
                 }
                 Ok(_) => {
                     trace!("Received line: {}", line.trim());
@@ -141,7 +140,6 @@ impl FocusSource for HyprlandSource {
                     warn!("Read error: {}", e);
                     self.reader = None;
                     self.reconnect().await?;
-                    continue;
                 }
             }
         }
