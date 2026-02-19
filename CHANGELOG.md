@@ -18,6 +18,17 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Fixed
+
+- Unreachable rate-limit warning for wakatime-cli errors (the "showing every Nth error" message could never print)
+
+### Changed
+
+- Removed unnecessary `Arc` wrappers on `IdleMonitor` fields (the struct is always behind `Arc`, so inner `Arc`s were redundant)
+- Consolidated duplicated CLI argument construction in heartbeat sending
+- Simplified Hyprland socket discovery logic
+- Removed dead code: unused `Entity` trait impls, unused import, unused dev-dependency
+
 ## [0.1.2]
 
 ### Added
