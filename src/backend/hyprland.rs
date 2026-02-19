@@ -265,9 +265,8 @@ impl FocusState {
     fn update(&mut self, event: HyprlandEvent) -> Option<FocusEvent> {
         match event {
             HyprlandEvent::ActiveWindow { class, title } => {
-                // activewindow comes before activewindowv2, so store and wait
-                // But also emit immediately since we have the essential info
-                // Create event with whatever address we have (might be stale)
+                // activewindow carries class/title; attach the latest known address
+                // from activewindowv2 if available.
                 if class.is_empty() {
                     // Empty class means no focus (e.g., switching to empty workspace)
                     None

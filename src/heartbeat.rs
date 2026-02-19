@@ -51,14 +51,16 @@ impl HeartbeatBuilder {
     pub fn is_app_allowed(&self, app_class: &str) -> bool {
         // Denylist takes precedence
         if let Some(ref denylist) = self.app_denylist
-            && denylist.iter().any(|d| d == app_class)
+            && denylist.iter().any(|d| d.eq_ignore_ascii_case(app_class))
         {
             return false;
         }
 
         // If allowlist is set, app must be in it
         if let Some(ref allowlist) = self.app_allowlist {
-            return allowlist.iter().any(|a| a == app_class);
+            return allowlist
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(app_class));
         }
 
         // No allowlist means all apps are allowed (unless denylisted)
@@ -247,6 +249,20 @@ mod tests {
         assert!(builder.is_app_allowed("firefox"));
         assert!(builder.is_app_allowed("code"));
         assert!(!builder.is_app_allowed("chromium"));
+    }
+
+    #[test]
+    fn test_is_app_allowed_case_insensitive_matching() {
+        let config = Config {
+            app_allowlist: Some(vec!["Code".to_string()]),
+            app_denylist: Some(vec!["Slack".to_string()]),
+            ..Default::default()
+        };
+
+        let builder = HeartbeatBuilder::from_config(&config).unwrap();
+
+        assert!(builder.is_app_allowed("code"));
+        assert!(!builder.is_app_allowed("slack"));
     }
 
     #[test]

@@ -45,27 +45,27 @@ impl WakaTimeClient {
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
     pub async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        let mut args = vec![
-            "--entity-type",
-            "app",
-            "--entity",
-            heartbeat.entity.as_str(),
-            "--plugin",
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
-            "--category",
-            heartbeat.category.as_str(),
+        let mut printable_args = vec![
+            "--entity-type".to_string(),
+            "app".to_string(),
+            "--entity".to_string(),
+            heartbeat.entity.as_str().to_string(),
+            "--plugin".to_string(),
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")).to_string(),
+            "--category".to_string(),
+            heartbeat.category.as_str().to_string(),
         ];
 
         if let Some(ref config_path) = self.config_path {
-            args.push("--config");
-            args.push(config_path.to_str().unwrap_or(""));
+            printable_args.push("--config".to_string());
+            printable_args.push(config_path.display().to_string());
         }
 
         if self.dry_run {
             info!(
                 "[DRY RUN] Would execute: {} {}",
                 self.cli_path.display(),
-                args.join(" ")
+                printable_args.join(" ")
             );
             return Ok(());
         }
@@ -73,11 +73,25 @@ impl WakaTimeClient {
         debug!(
             "Sending heartbeat: {} {}",
             self.cli_path.display(),
-            args.join(" ")
+            printable_args.join(" ")
         );
 
-        let result = Command::new(&self.cli_path)
-            .args(&args)
+        let mut command = Command::new(&self.cli_path);
+        command
+            .arg("--entity-type")
+            .arg("app")
+            .arg("--entity")
+            .arg(heartbeat.entity.as_str())
+            .arg("--plugin")
+            .arg(concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")))
+            .arg("--category")
+            .arg(heartbeat.category.as_str());
+
+        if let Some(ref config_path) = self.config_path {
+            command.arg("--config").arg(config_path);
+        }
+
+        let result = command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
