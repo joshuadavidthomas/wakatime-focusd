@@ -1,26 +1,34 @@
-//! Idle detection via systemd-logind DBus interface.
+//! Idle detection via systemd-logind `DBus` interface.
 //!
-//! Polls IdleHint property from the current session.
+//! Polls `IdleHint` property from the current session.
 
-use anyhow::{Context, Result};
 use std::env;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
+
+use anyhow::Context;
+use anyhow::Result;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
 use zbus::Connection;
 
-/// DBus service and path for login1.
+/// `DBus` service and path for login1.
 const LOGIND_SERVICE: &str = "org.freedesktop.login1";
 const LOGIND_PATH: &str = "/org/freedesktop/login1";
+const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
 
 /// Idle monitor that polls systemd-logind for idle state.
 pub struct IdleMonitor {
     /// Cached idle state.
     idle_hint: Arc<AtomicBool>,
 
-    /// Session object path in DBus.
+    /// Session object path in `DBus`.
     session_path: Arc<RwLock<Option<String>>>,
 
     /// Whether idle monitoring is available/enabled.
@@ -61,9 +69,9 @@ impl IdleMonitor {
         Ok(())
     }
 
-    /// Poll the current idle state from DBus.
+    /// Poll the current idle state from `DBus`.
     ///
-    /// This updates the cached idle_hint value.
+    /// This updates the cached `idle_hint` value.
     pub async fn poll_idle_state(&self) -> Result<bool> {
         let session_path = self.session_path.read().await;
         let Some(ref path) = *session_path else {
@@ -77,10 +85,10 @@ impl IdleMonitor {
         let idle = get_idle_hint(&conn, path).await?;
         let prev = self.idle_hint.swap(idle, Ordering::Relaxed);
 
-        if idle != prev {
-            debug!("Idle state changed: {} -> {}", prev, idle);
-        } else {
+        if idle == prev {
             trace!("Idle state: {}", idle);
+        } else {
+            debug!("Idle state changed: {} -> {}", prev, idle);
         }
 
         Ok(idle)
@@ -135,8 +143,6 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     if let Ok(session_id) = env::var("XDG_SESSION_ID") {
         debug!("Using XDG_SESSION_ID: {}", session_id);
 
-        const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
-
         let proxy = zbus::Proxy::new(conn, LOGIND_SERVICE, LOGIND_PATH, MANAGER_INTERFACE)
             .await
             .context("Failed to create Manager proxy")?;
@@ -153,13 +159,13 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     debug!("XDG_SESSION_ID not set, trying to find current session");
 
     // Try "self" session - probe by reading IdleHint
-    let self_path = format!("{}/session/self", LOGIND_PATH);
+    let self_path = format!("{LOGIND_PATH}/session/self");
     if get_idle_hint(conn, &self_path).await.is_ok() {
         return Ok(self_path);
     }
 
     // Try "auto" session
-    let auto_path = format!("{}/session/auto", LOGIND_PATH);
+    let auto_path = format!("{LOGIND_PATH}/session/auto");
     if get_idle_hint(conn, &auto_path).await.is_ok() {
         return Ok(auto_path);
     }
@@ -169,7 +175,7 @@ async fn resolve_session_path(conn: &Connection) -> Result<String> {
     )
 }
 
-/// Get the IdleHint property from a session.
+/// Get the `IdleHint` property from a session.
 async fn get_idle_hint(conn: &Connection, session_path: &str) -> Result<bool> {
     const SESSION_INTERFACE: &str = "org.freedesktop.login1.Session";
     const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";

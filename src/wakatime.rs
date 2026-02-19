@@ -1,21 +1,29 @@
-//! WakaTime CLI invocation.
+//! `WakaTime` CLI invocation.
 //!
 //! Builds and spawns wakatime-cli commands for sending heartbeats.
 
-use crate::config::Config;
-use crate::domain::Heartbeat;
-use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+
+use anyhow::Context;
+use anyhow::Result;
 use tokio::process::Command;
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
+
+use crate::config::Config;
+use crate::domain::Heartbeat;
 
 /// Rate limiter for error logging.
 static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
 const ERROR_LOG_RATE_LIMIT: u32 = 10; // Log every Nth error after initial burst
 
-/// WakaTime CLI client.
+/// `WakaTime` CLI client.
 #[derive(Debug)]
 pub struct WakaTimeClient {
     /// Path to wakatime-cli binary.
@@ -29,7 +37,7 @@ pub struct WakaTimeClient {
 }
 
 impl WakaTimeClient {
-    /// Create a new WakaTime client from config.
+    /// Create a new `WakaTime` client from config.
     pub fn from_config(config: &Config) -> Result<Self> {
         let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_ref())?;
         info!("Using wakatime-cli: {}", cli_path.display());
@@ -45,27 +53,27 @@ impl WakaTimeClient {
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
     pub async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        let mut args = vec![
-            "--entity-type",
-            "app",
-            "--entity",
-            heartbeat.entity.as_str(),
-            "--plugin",
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
-            "--category",
-            heartbeat.category.as_str(),
+        let mut printable_args = vec![
+            "--entity-type".to_string(),
+            "app".to_string(),
+            "--entity".to_string(),
+            heartbeat.entity.as_str().to_string(),
+            "--plugin".to_string(),
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")).to_string(),
+            "--category".to_string(),
+            heartbeat.category.as_str().to_string(),
         ];
 
         if let Some(ref config_path) = self.config_path {
-            args.push("--config");
-            args.push(config_path.to_str().unwrap_or(""));
+            printable_args.push("--config".to_string());
+            printable_args.push(config_path.display().to_string());
         }
 
         if self.dry_run {
             info!(
                 "[DRY RUN] Would execute: {} {}",
                 self.cli_path.display(),
-                args.join(" ")
+                printable_args.join(" ")
             );
             return Ok(());
         }
@@ -73,11 +81,29 @@ impl WakaTimeClient {
         debug!(
             "Sending heartbeat: {} {}",
             self.cli_path.display(),
-            args.join(" ")
+            printable_args.join(" ")
         );
 
-        let result = Command::new(&self.cli_path)
-            .args(&args)
+        let mut command = Command::new(&self.cli_path);
+        command
+            .arg("--entity-type")
+            .arg("app")
+            .arg("--entity")
+            .arg(heartbeat.entity.as_str())
+            .arg("--plugin")
+            .arg(concat!(
+                env!("CARGO_PKG_NAME"),
+                "/",
+                env!("CARGO_PKG_VERSION")
+            ))
+            .arg("--category")
+            .arg(heartbeat.category.as_str());
+
+        if let Some(ref config_path) = self.config_path {
+            command.arg("--config").arg(config_path);
+        }
+
+        let result = command
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -118,11 +144,11 @@ impl WakaTimeClient {
 fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
     // Use configured path if provided
     if let Some(path) = configured_path {
-        if path.exists() {
+        if path.is_file() {
             return Ok(path.clone());
         }
         anyhow::bail!(
-            "Configured wakatime-cli path does not exist: {}",
+            "Configured wakatime-cli path is not a file: {}",
             path.display()
         );
     }
@@ -138,7 +164,7 @@ fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
 
         // Try exact name first
         let exact = wakatime_dir.join("wakatime-cli");
-        if exact.exists() {
+        if exact.is_file() {
             return Ok(exact);
         }
 

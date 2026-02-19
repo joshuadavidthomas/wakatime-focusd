@@ -2,14 +2,22 @@
 //!
 //! Connects to Hyprland's socket2 event stream and parses activewindow/activewindowv2 events.
 
-use super::{FocusError, FocusEvent, FocusSource};
-use async_trait::async_trait;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, BufReader};
+
+use async_trait::async_trait;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
 use tokio::net::UnixStream;
-use tracing::{debug, info, trace, warn};
+use tracing::debug;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
+
+use super::FocusError;
+use super::FocusEvent;
+use super::FocusSource;
 
 /// Hyprland focus source implementation.
 pub struct HyprlandSource {
@@ -42,7 +50,7 @@ impl HyprlandSource {
         let mut diags = Vec::new();
 
         match env::var("XDG_RUNTIME_DIR") {
-            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={}", v)),
+            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={v}")),
             Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
         }
 
@@ -58,7 +66,7 @@ impl HyprlandSource {
 
         match env::var("HYPRLAND_INSTANCE_SIGNATURE") {
             Ok(v) => {
-                diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={} (set)", v));
+                diags.push(format!("HYPRLAND_INSTANCE_SIGNATURE={v} (set)"));
             }
             Err(_) => {
                 diags.push("HYPRLAND_INSTANCE_SIGNATURE: NOT SET (will auto-discover)".to_string());
@@ -102,12 +110,9 @@ impl HyprlandSource {
 impl FocusSource for HyprlandSource {
     async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
         loop {
-            let reader = match &mut self.reader {
-                Some(r) => r,
-                None => {
-                    self.reconnect().await?;
-                    continue;
-                }
+            let Some(reader) = &mut self.reader else {
+                self.reconnect().await?;
+                continue;
             };
 
             let mut line = String::new();
@@ -117,7 +122,6 @@ impl FocusSource for HyprlandSource {
                     warn!("Socket2 stream ended (EOF)");
                     self.reader = None;
                     self.reconnect().await?;
-                    continue;
                 }
                 Ok(_) => {
                     trace!("Received line: {}", line.trim());
@@ -136,7 +140,6 @@ impl FocusSource for HyprlandSource {
                     warn!("Read error: {}", e);
                     self.reader = None;
                     self.reconnect().await?;
-                    continue;
                 }
             }
         }
@@ -145,7 +148,7 @@ impl FocusSource for HyprlandSource {
 
 /// Get the path to Hyprland's socket2.
 ///
-/// First tries HYPRLAND_INSTANCE_SIGNATURE env var (for multi-instance setups),
+/// First tries `HYPRLAND_INSTANCE_SIGNATURE` env var (for multi-instance setups),
 /// then falls back to discovering the most recently modified socket.
 fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")
@@ -177,7 +180,7 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
 
     if let Ok(entries) = std::fs::read_dir(&hypr_dir) {
         let sockets: Vec<(PathBuf, std::time::SystemTime)> = entries
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|e| {
                 let path = e.path().join(".socket2.sock");
                 path.exists().then(|| {
@@ -257,28 +260,25 @@ fn parse_event_line(line: &str) -> HyprlandEvent {
 /// so we need to correlate them.
 #[derive(Debug, Default)]
 struct FocusState {
-    current_class: Option<String>,
-    current_title: Option<String>,
     current_address: Option<String>,
 }
 
 impl FocusState {
-    /// Update state and return a FocusEvent if we have enough info.
+    /// Update state and return a `FocusEvent` if we have enough info.
     fn update(&mut self, event: HyprlandEvent) -> Option<FocusEvent> {
         match event {
             HyprlandEvent::ActiveWindow { class, title } => {
-                // activewindow comes before activewindowv2, so store and wait
-                // But also emit immediately since we have the essential info
-                self.current_class = Some(class.clone());
-                self.current_title = Some(title.clone());
+                let class = class.trim();
 
-                // Create event with whatever address we have (might be stale)
+                // activewindow carries class/title; attach the latest known address
+                // from activewindowv2 if available.
                 if class.is_empty() {
                     // Empty class means no focus (e.g., switching to empty workspace)
+                    self.current_address = None;
                     None
                 } else {
                     Some(FocusEvent::new(
-                        class,
+                        class.to_string(),
                         if title.is_empty() { None } else { Some(title) },
                         self.current_address.clone(),
                     ))
@@ -443,13 +443,28 @@ mod tests {
         let mut state = FocusState::default();
 
         let event = HyprlandEvent::ActiveWindow {
-            class: "".to_string(),
-            title: "".to_string(),
+            class: String::new(),
+            title: String::new(),
         };
 
         assert!(
             state.update(event).is_none(),
             "Empty class should not produce event"
+        );
+    }
+
+    #[test]
+    fn test_focus_state_whitespace_class() {
+        let mut state = FocusState::default();
+
+        let event = HyprlandEvent::ActiveWindow {
+            class: "   ".to_string(),
+            title: "title".to_string(),
+        };
+
+        assert!(
+            state.update(event).is_none(),
+            "Whitespace-only class should not produce event"
         );
     }
 
@@ -470,5 +485,36 @@ mod tests {
         };
         let focus = state.update(event).expect("Should produce focus event");
         assert_eq!(focus.window_id, Some("0xabc123".to_string()));
+    }
+
+    #[test]
+    fn test_focus_state_empty_focus_clears_stale_address() {
+        let mut state = FocusState::default();
+
+        assert!(
+            state
+                .update(HyprlandEvent::ActiveWindowV2 {
+                    address: "0xold".to_string()
+                })
+                .is_none()
+        );
+
+        assert!(
+            state
+                .update(HyprlandEvent::ActiveWindow {
+                    class: String::new(),
+                    title: String::new()
+                })
+                .is_none()
+        );
+
+        let next_focus = state
+            .update(HyprlandEvent::ActiveWindow {
+                class: "code".to_string(),
+                title: "main.rs".to_string(),
+            })
+            .expect("Should produce focus event");
+
+        assert_eq!(next_focus.window_id, None);
     }
 }

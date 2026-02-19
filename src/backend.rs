@@ -5,15 +5,14 @@
 
 mod hyprland;
 
-pub use hyprland::HyprlandSource;
-
 use async_trait::async_trait;
+pub use hyprland::HyprlandSource;
 use thiserror::Error;
 
 /// Backend-agnostic focus event.
 #[derive(Debug, Clone)]
 pub struct FocusEvent {
-    /// Application class/app_id (primary identifier for the app).
+    /// Application `class/app_id` (primary identifier for the app).
     pub app_class: String,
 
     /// Window title (optional, may contain sensitive info).

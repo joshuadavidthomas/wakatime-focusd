@@ -1,11 +1,16 @@
 //! Configuration loading and defaults for wakatime-focusd.
 
-use crate::domain::Category;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-/// Title handling strategy when track_titles is enabled.
+use anyhow::Context;
+use anyhow::Result;
+use serde::Deserialize;
+use serde::Serialize;
+
+use crate::domain::Category;
+
+/// Title handling strategy when `track_titles` is enabled.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum TitleStrategy {
@@ -19,7 +24,7 @@ pub enum TitleStrategy {
 /// Category rule for pattern-based category assignment.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryRule {
-    /// Regex pattern to match app_class (case-insensitive).
+    /// Regex pattern to match `app_class` (case-insensitive).
     pub pattern: String,
     /// Category to assign when pattern matches.
     pub category: Category,
@@ -38,7 +43,7 @@ pub struct Config {
     /// Whether to include window titles in tracking (default: false).
     pub track_titles: bool,
 
-    /// How to handle titles when track_titles is true.
+    /// How to handle titles when `track_titles` is true.
     pub title_strategy: TitleStrategy,
 
     /// Default category for apps that don't match any rule (default: "coding").
