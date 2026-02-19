@@ -2,6 +2,7 @@
 //!
 //! Builds and spawns wakatime-cli commands for sending heartbeats.
 
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::AtomicU32;
@@ -39,7 +40,7 @@ pub struct WakaTimeClient {
 impl WakaTimeClient {
     /// Create a new `WakaTime` client from config.
     pub fn from_config(config: &Config) -> Result<Self> {
-        let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_ref())?;
+        let cli_path = find_wakatime_cli(config.wakatime_cli_path.as_deref())?;
         info!("Using wakatime-cli: {}", cli_path.display());
 
         Ok(Self {
@@ -53,27 +54,29 @@ impl WakaTimeClient {
     ///
     /// This spawns wakatime-cli asynchronously and does not block.
     pub async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        let mut printable_args = vec![
-            "--entity-type".to_string(),
-            "app".to_string(),
-            "--entity".to_string(),
-            heartbeat.entity.as_str().to_string(),
-            "--plugin".to_string(),
-            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")).to_string(),
-            "--category".to_string(),
-            heartbeat.category.as_str().to_string(),
+        let mut args = vec![
+            "--entity-type",
+            "app",
+            "--entity",
+            heartbeat.entity.as_str(),
+            "--plugin",
+            concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")),
+            "--category",
+            heartbeat.category.as_str(),
         ];
 
+        let config_path_str;
         if let Some(ref config_path) = self.config_path {
-            printable_args.push("--config".to_string());
-            printable_args.push(config_path.display().to_string());
+            config_path_str = config_path.display().to_string();
+            args.push("--config");
+            args.push(&config_path_str);
         }
 
         if self.dry_run {
             info!(
                 "[DRY RUN] Would execute: {} {}",
                 self.cli_path.display(),
-                printable_args.join(" ")
+                args.join(" ")
             );
             return Ok(());
         }
@@ -81,27 +84,11 @@ impl WakaTimeClient {
         debug!(
             "Sending heartbeat: {} {}",
             self.cli_path.display(),
-            printable_args.join(" ")
+            args.join(" ")
         );
 
         let mut command = Command::new(&self.cli_path);
-        command
-            .arg("--entity-type")
-            .arg("app")
-            .arg("--entity")
-            .arg(heartbeat.entity.as_str())
-            .arg("--plugin")
-            .arg(concat!(
-                env!("CARGO_PKG_NAME"),
-                "/",
-                env!("CARGO_PKG_VERSION")
-            ))
-            .arg("--category")
-            .arg(heartbeat.category.as_str());
-
-        if let Some(ref config_path) = self.config_path {
-            command.arg("--config").arg(config_path);
-        }
+        command.args(&args);
 
         let result = command
             .stdin(Stdio::null())
@@ -121,7 +108,7 @@ impl WakaTimeClient {
 
             // Rate-limit error logging
             let count = ERROR_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
-            if count < 5 || count.is_multiple_of(ERROR_LOG_RATE_LIMIT) {
+            if count <= 5 || count.is_multiple_of(ERROR_LOG_RATE_LIMIT) {
                 error!(
                     "wakatime-cli failed (exit code {:?}): {}",
                     result.status.code(),
@@ -141,11 +128,11 @@ impl WakaTimeClient {
 }
 
 /// Find the wakatime-cli binary.
-fn find_wakatime_cli(configured_path: Option<&PathBuf>) -> Result<PathBuf> {
+fn find_wakatime_cli(configured_path: Option<&Path>) -> Result<PathBuf> {
     // Use configured path if provided
     if let Some(path) = configured_path {
         if path.is_file() {
-            return Ok(path.clone());
+            return Ok(path.to_path_buf());
         }
         anyhow::bail!(
             "Configured wakatime-cli path is not a file: {}",

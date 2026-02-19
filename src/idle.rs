@@ -24,24 +24,27 @@ const LOGIND_PATH: &str = "/org/freedesktop/login1";
 const MANAGER_INTERFACE: &str = "org.freedesktop.login1.Manager";
 
 /// Idle monitor that polls systemd-logind for idle state.
+///
+/// Always used behind `Arc<IdleMonitor>` for sharing between tasks.
+/// Interior mutability is provided by `AtomicBool` and `RwLock` directly.
 pub struct IdleMonitor {
     /// Cached idle state.
-    idle_hint: Arc<AtomicBool>,
+    idle_hint: AtomicBool,
 
     /// Session object path in `DBus`.
-    session_path: Arc<RwLock<Option<String>>>,
+    session_path: RwLock<Option<String>>,
 
     /// Whether idle monitoring is available/enabled.
-    enabled: Arc<AtomicBool>,
+    enabled: AtomicBool,
 }
 
 impl IdleMonitor {
     /// Create a new idle monitor.
     pub fn new() -> Self {
         Self {
-            idle_hint: Arc::new(AtomicBool::new(false)),
-            session_path: Arc::new(RwLock::new(None)),
-            enabled: Arc::new(AtomicBool::new(true)),
+            idle_hint: AtomicBool::new(false),
+            session_path: RwLock::new(None),
+            enabled: AtomicBool::new(true),
         }
     }
 
@@ -104,23 +107,21 @@ impl IdleMonitor {
     ///
     /// Polls idle state at the specified interval and updates the cache.
     pub fn start_polling(self: Arc<Self>, interval: Duration) {
-        let monitor = self.clone();
-
         tokio::spawn(async move {
             // Try to initialize
-            if let Err(e) = monitor.init().await {
+            if let Err(e) = self.init().await {
                 error!(
                     "Failed to initialize idle monitor: {}. Disabling idle gating.",
                     e
                 );
-                monitor.disable();
+                self.disable();
                 return;
             }
 
             info!("Idle monitor started, polling every {:?}", interval);
 
             loop {
-                if let Err(e) = monitor.poll_idle_state().await {
+                if let Err(e) = self.poll_idle_state().await {
                     warn!("Failed to poll idle state: {}", e);
                     // Don't disable on transient errors, just log
                 }

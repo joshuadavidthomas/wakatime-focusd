@@ -70,18 +70,6 @@ impl Entity {
     }
 }
 
-impl From<String> for Entity {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for Entity {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
 /// Complete heartbeat ready to send to `WakaTime`.
 #[derive(Debug, Clone)]
 pub struct Heartbeat {

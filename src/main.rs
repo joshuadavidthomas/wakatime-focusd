@@ -77,8 +77,7 @@ async fn main() -> Result<()> {
     info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
     // Check environment
-    let hyprland_available = env::var("XDG_RUNTIME_DIR").is_ok();
-    if !hyprland_available {
+    if env::var("XDG_RUNTIME_DIR").is_err() {
         error!("Hyprland environment not detected.");
         error!("Required environment variables:");
         for diag in HyprlandSource::get_diagnostics() {
