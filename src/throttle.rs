@@ -4,9 +4,13 @@
 //! - Send immediately on focus/entity change
 //! - Send again if >= min_resend_seconds since last send for same entity
 
-use crate::domain::{Entity, Heartbeat};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use std::time::Instant;
+
 use tracing::debug;
+
+use crate::domain::Entity;
+use crate::domain::Heartbeat;
 
 /// Decision from the throttle check.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,10 +113,12 @@ impl HeartbeatThrottle {
 
 #[cfg(test)]
 mod tests {
+    use std::thread::sleep;
+
     use super::*;
     use crate::backend::FocusEvent;
-    use crate::domain::{Category, Heartbeat};
-    use std::thread::sleep;
+    use crate::domain::Category;
+    use crate::domain::Heartbeat;
 
     fn test_heartbeat(app_class: &str) -> Heartbeat {
         Heartbeat::new(

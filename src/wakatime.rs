@@ -2,14 +2,22 @@
 //!
 //! Builds and spawns wakatime-cli commands for sending heartbeats.
 
-use crate::config::Config;
-use crate::domain::Heartbeat;
-use anyhow::{Context, Result};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+
+use anyhow::Context;
+use anyhow::Result;
 use tokio::process::Command;
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
+
+use crate::config::Config;
+use crate::domain::Heartbeat;
 
 /// Rate limiter for error logging.
 static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);

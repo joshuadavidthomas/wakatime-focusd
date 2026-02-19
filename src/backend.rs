@@ -5,9 +5,8 @@
 
 mod hyprland;
 
-pub use hyprland::HyprlandSource;
-
 use async_trait::async_trait;
+pub use hyprland::HyprlandSource;
 use thiserror::Error;
 
 /// Backend-agnostic focus event.

@@ -11,21 +11,29 @@ mod idle;
 mod throttle;
 mod wakatime;
 
-use crate::backend::{FocusEvent, FocusSource, HyprlandSource};
-use crate::config::Config;
-use crate::heartbeat::HeartbeatBuilder;
-use crate::idle::IdleMonitor;
-use crate::throttle::{HeartbeatThrottle, ThrottleDecision};
-use crate::wakatime::WakaTimeClient;
-
-use anyhow::{Context, Result};
-use clap::Parser;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+
+use anyhow::Context;
+use anyhow::Result;
+use clap::Parser;
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use tracing::warn;
 use tracing_subscriber::EnvFilter;
+
+use crate::backend::FocusEvent;
+use crate::backend::FocusSource;
+use crate::backend::HyprlandSource;
+use crate::config::Config;
+use crate::heartbeat::HeartbeatBuilder;
+use crate::idle::IdleMonitor;
+use crate::throttle::HeartbeatThrottle;
+use crate::throttle::ThrottleDecision;
+use crate::wakatime::WakaTimeClient;
 
 /// WakaTime focus daemon for Hyprland.
 ///

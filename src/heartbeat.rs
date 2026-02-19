@@ -1,11 +1,17 @@
 //! Heartbeat construction from focus events.
 
-use crate::backend::FocusEvent;
-use crate::config::{CategoryRule, Config, TitleStrategy};
-use crate::domain::{Category, Entity, Heartbeat};
 use anyhow::Result;
-use regex::{Regex, RegexBuilder};
+use regex::Regex;
+use regex::RegexBuilder;
 use tracing::warn;
+
+use crate::backend::FocusEvent;
+use crate::config::CategoryRule;
+use crate::config::Config;
+use crate::config::TitleStrategy;
+use crate::domain::Category;
+use crate::domain::Entity;
+use crate::domain::Heartbeat;
 
 /// Compiled category matching rule.
 struct CompiledRule {

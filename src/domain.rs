@@ -1,7 +1,9 @@
 //! Domain types for WakaTime heartbeats.
 
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::backend::FocusEvent;
-use serde::{Deserialize, Serialize};
 
 /// WakaTime activity category.
 ///

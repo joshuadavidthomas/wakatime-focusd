@@ -2,14 +2,22 @@
 //!
 //! Connects to Hyprland's socket2 event stream and parses activewindow/activewindowv2 events.
 
-use super::{FocusError, FocusEvent, FocusSource};
-use async_trait::async_trait;
 use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, BufReader};
+
+use async_trait::async_trait;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
 use tokio::net::UnixStream;
-use tracing::{debug, info, trace, warn};
+use tracing::debug;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
+
+use super::FocusError;
+use super::FocusEvent;
+use super::FocusSource;
 
 /// Hyprland focus source implementation.
 pub struct HyprlandSource {

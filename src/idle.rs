@@ -2,13 +2,20 @@
 //!
 //! Polls IdleHint property from the current session.
 
-use anyhow::{Context, Result};
 use std::env;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
+
+use anyhow::Context;
+use anyhow::Result;
 use tokio::sync::RwLock;
-use tracing::{debug, error, info, trace, warn};
+use tracing::debug;
+use tracing::error;
+use tracing::info;
+use tracing::trace;
+use tracing::warn;
 use zbus::Connection;
 
 /// DBus service and path for login1.

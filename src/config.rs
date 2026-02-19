@@ -1,9 +1,14 @@
 //! Configuration loading and defaults for wakatime-focusd.
 
+use std::path::Path;
+use std::path::PathBuf;
+
+use anyhow::Context;
+use anyhow::Result;
+use serde::Deserialize;
+use serde::Serialize;
+
 use crate::domain::Category;
-use anyhow::{Context, Result};
-use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 
 /// Title handling strategy when track_titles is enabled.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
