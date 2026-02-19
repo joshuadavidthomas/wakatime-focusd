@@ -155,9 +155,7 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let hypr_dir = PathBuf::from(&xdg_runtime_dir).join("hypr");
 
     if !hypr_dir.exists() {
-        return Err(FocusError::SocketNotFound(
-            hypr_dir.display().to_string(),
-        ));
+        return Err(FocusError::SocketNotFound(hypr_dir.display().to_string()));
     }
 
     if let Ok(sig) = env::var("HYPRLAND_INSTANCE_SIGNATURE") {
