@@ -49,15 +49,13 @@ impl HyprlandSource {
     pub fn get_diagnostics() -> Vec<String> {
         let mut diags = Vec::new();
 
-        match env::var("XDG_RUNTIME_DIR") {
-            Ok(v) => diags.push(format!("XDG_RUNTIME_DIR={v}")),
-            Err(_) => diags.push("XDG_RUNTIME_DIR: NOT SET".to_string()),
-        }
-
-        let hypr_dir = match env::var("XDG_RUNTIME_DIR") {
-            Ok(dir) => PathBuf::from(dir).join("hypr"),
-            Err(_) => return diags,
+        let Ok(xdg_runtime_dir) = env::var("XDG_RUNTIME_DIR") else {
+            diags.push("XDG_RUNTIME_DIR: NOT SET".to_string());
+            return diags;
         };
+        diags.push(format!("XDG_RUNTIME_DIR={xdg_runtime_dir}"));
+
+        let hypr_dir = PathBuf::from(xdg_runtime_dir).join("hypr");
 
         if !hypr_dir.exists() {
             diags.push("hyprland directory: NOT FOUND".to_string());
@@ -157,10 +155,7 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
     let hypr_dir = PathBuf::from(&xdg_runtime_dir).join("hypr");
 
     if !hypr_dir.exists() {
-        return Err(FocusError::SocketNotFound(format!(
-            "{}",
-            hypr_dir.display()
-        )));
+        return Err(FocusError::SocketNotFound(hypr_dir.display().to_string()));
     }
 
     if let Ok(sig) = env::var("HYPRLAND_INSTANCE_SIGNATURE") {
@@ -183,14 +178,9 @@ fn get_socket2_path() -> Result<PathBuf, FocusError> {
             .filter_map(std::result::Result::ok)
             .filter_map(|e| {
                 let path = e.path().join(".socket2.sock");
-                path.exists().then(|| {
-                    path.metadata()
-                        .and_then(|m| m.modified())
-                        .ok()
-                        .map(|mtime| (path, mtime))
-                })
+                let mtime = path.metadata().ok()?.modified().ok()?;
+                Some((path, mtime))
             })
-            .flatten()
             .collect();
 
         if let Some((path, _mtime)) = sockets.into_iter().max_by_key(|(_p, mtime)| *mtime) {

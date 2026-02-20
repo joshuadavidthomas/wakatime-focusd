@@ -1,6 +1,5 @@
 //! Heartbeat construction from focus events.
 
-use anyhow::Result;
 use regex::Regex;
 use regex::RegexBuilder;
 use tracing::warn;
