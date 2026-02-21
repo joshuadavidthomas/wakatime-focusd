@@ -18,6 +18,8 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+## [0.1.3]
+
 ### Fixed
 
 - Unreachable rate-limit warning for wakatime-cli errors (the "showing every Nth error" message could never print)
@@ -65,7 +67,8 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 - Josh Thomas <josh@joshthomas.dev> (maintainer)
 
-[unreleased]: https://github.com/joshuadavidthomas/wakatime-focusd/compare/v0.1.2...HEAD
+[unreleased]: https://github.com/joshuadavidthomas/wakatime-focusd/compare/v0.1.3...HEAD
 [0.1.0]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.0
 [0.1.1]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.1
 [0.1.2]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.2
+[0.1.3]: https://github.com/joshuadavidthomas/wakatime-focusd/releases/tag/v0.1.3
