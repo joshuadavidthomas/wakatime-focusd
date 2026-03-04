@@ -393,10 +393,7 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
 
         match outcome {
             EventLoopOutcome::SourceError(e) => {
-                error!(
-                    "Focus event error: {}. Reconnecting in {:?}...",
-                    e, backoff
-                );
+                error!("Focus event error: {}. Reconnecting in {:?}...", e, backoff);
                 tokio::time::sleep(backoff).await;
                 backoff = (backoff * 2).min(RECONNECT_MAX_BACKOFF);
             }
