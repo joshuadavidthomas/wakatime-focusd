@@ -335,6 +335,9 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
 
         match outcome {
             EventLoopOutcome::SourceError(e) => {
+                // TODO: add exponential backoff here to avoid tight reconnect
+                // loops (individual backends have their own backoff, but a
+                // compositor restart can cause rapid SourceError cycles).
                 error!("Focus event error: {}, reconnecting...", e);
             }
             EventLoopOutcome::Finished => return Ok(()),

@@ -78,8 +78,9 @@ pub async fn run_event_loop(
                         continue;
                     }
 
-                    let periodic_heartbeat =
-                        heartbeat_builder.build(last_heartbeat.source.clone());
+                    // Re-send the same heartbeat rather than rebuilding from
+                    // the source event — entity and category haven't changed.
+                    let periodic_heartbeat = last_heartbeat.clone();
                     debug!(
                         "Sending periodic heartbeat for: {}",
                         periodic_heartbeat.entity.as_str()

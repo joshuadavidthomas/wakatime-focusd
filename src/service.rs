@@ -1,4 +1,9 @@
 //! Systemd user service management (install / uninstall / status).
+//!
+//! All functions in this module use blocking I/O (`std::process::Command`,
+//! `std::fs`). This is fine because they are only called from CLI subcommands
+//! that return before the async runtime's event loop starts. Do not call these
+//! from an async context without `spawn_blocking`.
 
 use std::fs;
 use std::path::Path;
