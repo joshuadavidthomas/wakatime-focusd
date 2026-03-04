@@ -64,7 +64,7 @@ This inconsistency could confuse users. Consider supporting regex in allowlist/d
 
 - [x] **`service install --config <path>`** — embed config path in the generated unit file
 - [x] **Drop `async_trait`** — use native async trait syntax (edition 2024)
-- [ ] **aarch64-unknown-linux-gnu build** — add to CI matrix
+- [x] **aarch64-unknown-linux-gnu build** — add to CI matrix
 - [ ] **`SIGHUP` config reload** — standard daemon pattern
 - [ ] **`Display` for `Category`** and `Entity`
 - [ ] **`cargo-dist`** — generates the install.sh script, GitHub Release CI, platform matrix builds, and `cargo-binstall` metadata in one shot. Replaces the hand-rolled release workflow and solves install.sh, cross-compilation, and binary distribution all at once.
