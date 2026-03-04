@@ -12,6 +12,7 @@ use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use tokio_util::sync::CancellationToken;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
@@ -313,9 +314,11 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
         WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
 
     let idle_monitor = Arc::new(IdleMonitor::new());
-    idle_monitor
-        .clone()
-        .start_polling(Duration::from_secs(config.idle_check_interval_seconds));
+    let shutdown = CancellationToken::new();
+    idle_monitor.clone().start_polling(
+        Duration::from_secs(config.idle_check_interval_seconds),
+        shutdown.clone(),
+    );
 
     info!("Daemon started, waiting for focus events...");
 

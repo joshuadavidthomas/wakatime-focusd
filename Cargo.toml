@@ -29,6 +29,7 @@ x11rb = { version = "0.13.2", features = ["extra-traits"] }
 zbus = { version = "5", default-features = false, features = ["tokio"] }
 cosmic-protocols = { version = "0.2", default-features = false, features = ["client"] }
 wayland-protocols = { version = "0.32", features = ["staging", "client"] }
+tokio-util = "0.7.18"
 
 [dev-dependencies]
 cosmic-protocols = { version = "0.2", features = ["server"] }

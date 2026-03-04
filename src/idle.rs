@@ -11,6 +11,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::error;
 use tracing::info;
@@ -134,7 +135,8 @@ impl IdleMonitor {
     /// Start background polling task.
     ///
     /// Polls idle state at the specified interval and updates the cache.
-    pub fn start_polling(self: Arc<Self>, interval: Duration) {
+    /// The task exits cleanly when the provided `shutdown` token is cancelled.
+    pub fn start_polling(self: Arc<Self>, interval: Duration, shutdown: CancellationToken) {
         tokio::spawn(async move {
             // Try to initialize
             if let Err(e) = self.init().await {
@@ -154,7 +156,13 @@ impl IdleMonitor {
                     // Don't disable on transient errors, just log
                 }
 
-                tokio::time::sleep(interval).await;
+                tokio::select! {
+                    () = shutdown.cancelled() => {
+                        info!("Idle monitor shutting down");
+                        return;
+                    }
+                    () = tokio::time::sleep(interval) => {}
+                }
             }
         });
     }
