@@ -1132,6 +1132,7 @@ dependencies = [
  "dbus-launch",
  "dirs",
  "futures-util",
+ "libc",
  "regex",
  "serde",
  "serde_json",

@@ -23,19 +23,44 @@ use x11rb::wrapper::ConnectionExt as WrapperConnectionExt;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// Check whether a lock file's PID is still running.
+fn lock_file_is_active(lock_file: &str) -> bool {
+    let Ok(contents) = std::fs::read_to_string(lock_file) else {
+        return false;
+    };
+    let Ok(pid) = contents.trim().parse::<u32>() else {
+        return false;
+    };
+    // kill(pid, 0) checks existence without sending a signal
+    unsafe { libc::kill(pid.cast_signed(), 0) == 0 }
+}
+
+/// Remove stale X lock file and socket for a display number.
+fn clean_stale_display(display_num: u32) {
+    let lock_file = format!("/tmp/.X{display_num}-lock");
+    let socket_file = format!("/tmp/.X11-unix/X{display_num}");
+    let _ = std::fs::remove_file(&lock_file);
+    let _ = std::fs::remove_file(&socket_file);
+}
+
 /// Find a free display number and start Xvfb on it.
 ///
 /// Returns `(Child, display_string)` — the `Child` must be kept alive for the
 /// duration of the test. The display string is e.g. `:99`.
+///
+/// Automatically cleans up stale lock files from previous crashed runs.
 fn start_xvfb() -> (Child, String) {
     // Try display numbers starting from 99 to avoid conflicts
     for display_num in 99..120 {
         let display = format!(":{display_num}");
         let lock_file = format!("/tmp/.X{display_num}-lock");
 
-        // Skip if lock file exists (display in use)
+        // Clean up stale lock files from crashed test runs
         if std::path::Path::new(&lock_file).exists() {
-            continue;
+            if lock_file_is_active(&lock_file) {
+                continue;
+            }
+            clean_stale_display(display_num);
         }
 
         let child = Command::new("Xvfb")
