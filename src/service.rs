@@ -55,6 +55,7 @@ PartOf=graphical-session.target
 [Service]
 Type=simple
 ExecStart={exec_start}
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=2
 Environment=RUST_LOG=info
@@ -241,5 +242,12 @@ mod tests {
         let unit =
             generate_service_unit(Path::new("/usr/bin/wakatime-focusd"), None, Backend::Auto);
         assert!(unit.contains("ExecStart=/usr/bin/wakatime-focusd\n"));
+    }
+
+    #[test]
+    fn unit_file_contains_exec_reload() {
+        let unit =
+            generate_service_unit(Path::new("/usr/bin/wakatime-focusd"), None, Backend::Auto);
+        assert!(unit.contains("ExecReload=/bin/kill -HUP $MAINPID\n"));
     }
 }

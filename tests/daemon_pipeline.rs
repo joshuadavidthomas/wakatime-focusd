@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use futures_util::future::BoxFuture;
+use tokio::sync::Notify;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use wakatime_focusd::EventLoopOutcome;
@@ -110,6 +111,7 @@ async fn run_pipeline(events: Vec<FocusEvent>, config: Config) -> Vec<SentRecord
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     // Disable idle monitoring so it doesn't try to reach D-Bus
     idle_monitor.disable();
 
@@ -119,6 +121,7 @@ async fn run_pipeline(events: Vec<FocusEvent>, config: Config) -> Vec<SentRecord
         &sender,
         &idle_monitor,
         &shutdown,
+        &reload,
         false,
     )
     .await;
@@ -281,6 +284,7 @@ async fn test_idle_suppression() {
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     // Mark as idle (don't start polling — just set the atomic directly)
     idle_monitor.set_idle(true);
 
@@ -290,6 +294,7 @@ async fn test_idle_suppression() {
         &sender,
         &idle_monitor,
         &shutdown,
+        &reload,
         false,
     )
     .await;
@@ -308,6 +313,7 @@ async fn test_idle_transitions() {
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = Arc::new(IdleMonitor::new());
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     // Not idle initially, don't start D-Bus polling
 
     let idle_ref = Arc::clone(&idle_monitor);
@@ -324,6 +330,7 @@ async fn test_idle_transitions() {
             &sender,
             &idle_ref,
             &shutdown,
+            &reload,
             false,
         )
         .await
@@ -372,6 +379,7 @@ async fn test_periodic_heartbeat_timer() {
     let (sender, sent_arc) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     idle_monitor.disable(); // Don't use D-Bus
 
     let config = Config {
@@ -389,6 +397,7 @@ async fn test_periodic_heartbeat_timer() {
                 &sender,
                 &idle_monitor,
                 &shutdown,
+                &reload,
                 false,
             )
             .await;
@@ -438,6 +447,7 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
     let (sender, sent_arc) = RecordingSender::new();
     let idle_monitor = Arc::new(IdleMonitor::new());
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     // Not idle initially, but don't start polling
 
     let config = Config {
@@ -456,6 +466,7 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
                 &sender,
                 &idle_ref,
                 &shutdown,
+                &reload,
                 false,
             )
             .await;
@@ -576,6 +587,7 @@ async fn test_source_error_returns_source_error_outcome() {
     let (sender, _sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
     let shutdown = CancellationToken::new();
+    let reload = Notify::new();
     idle_monitor.disable();
 
     let outcome = run_event_loop(
@@ -584,9 +596,37 @@ async fn test_source_error_returns_source_error_outcome() {
         &sender,
         &idle_monitor,
         &shutdown,
+        &reload,
         false,
     )
     .await;
 
     assert!(matches!(outcome, EventLoopOutcome::SourceError(_)));
+}
+
+// Test: reload signal causes Reload outcome
+#[tokio::test]
+async fn test_reload_signal_returns_reload_outcome() {
+    let (source, _tx) = MockFocusSource::with_sender();
+    let (sender, _sent) = RecordingSender::new();
+    let idle_monitor = IdleMonitor::new();
+    let shutdown = CancellationToken::new();
+    let reload = Notify::new();
+    idle_monitor.disable();
+
+    // Pre-notify so the event loop picks it up immediately
+    reload.notify_one();
+
+    let outcome = run_event_loop(
+        Box::new(source),
+        &Config::default(),
+        &sender,
+        &idle_monitor,
+        &shutdown,
+        &reload,
+        false,
+    )
+    .await;
+
+    assert!(matches!(outcome, EventLoopOutcome::Reload));
 }

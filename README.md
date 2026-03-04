@@ -194,6 +194,20 @@ journalctl --user -u wakatime-focusd -f
 systemctl --user stop wakatime-focusd
 ```
 
+### Reloading configuration
+
+After editing your config file, reload it without restarting the daemon:
+
+```bash
+# Via systemctl (if using the systemd service)
+systemctl --user reload wakatime-focusd
+
+# Or via signal directly
+kill -HUP $(pidof wakatime-focusd)
+```
+
+All settings except `backend` take effect immediately. Changing the backend requires a full restart (`systemctl --user restart wakatime-focusd`).
+
 ### CLI
 
 <!-- [[[cog
