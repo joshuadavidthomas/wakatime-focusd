@@ -68,7 +68,7 @@ pub enum Backend {
     Sway,
     /// GNOME Shell (Mutter).
     Gnome,
-    /// KDE Plasma (KWin).
+    /// KDE Plasma (`KWin`).
     Kde,
     /// Niri compositor.
     Niri,
@@ -149,11 +149,9 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = HyprlandSource::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Sway => Err(FocusError::BackendNotImplemented(resolved)),
-        Backend::Gnome => Err(FocusError::BackendNotImplemented(resolved)),
-        Backend::Kde => Err(FocusError::BackendNotImplemented(resolved)),
-        Backend::Niri => Err(FocusError::BackendNotImplemented(resolved)),
-        Backend::X11 => Err(FocusError::BackendNotImplemented(resolved)),
+        Backend::Sway | Backend::Gnome | Backend::Kde | Backend::Niri | Backend::X11 => {
+            Err(FocusError::BackendNotImplemented(resolved))
+        }
         Backend::Auto => unreachable!("Auto should have been resolved"),
     }
 }
