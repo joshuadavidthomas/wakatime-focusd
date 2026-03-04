@@ -11,7 +11,6 @@
 use std::collections::HashMap;
 use std::env;
 
-use async_trait::async_trait;
 use cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1;
 use cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_handle_v1::ZcosmicToplevelHandleV1;
 use cosmic_protocols::toplevel_info::v1::client::zcosmic_toplevel_info_v1;
@@ -93,13 +92,16 @@ impl CosmicSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for CosmicSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        self.rx
-            .recv()
-            .await
-            .ok_or_else(|| FocusError::ConnectionFailed("COSMIC event loop closed".to_string()))
+    fn next_event(
+        &mut self,
+    ) -> futures_util::future::BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            self.rx
+                .recv()
+                .await
+                .ok_or_else(|| FocusError::ConnectionFailed("COSMIC event loop closed".to_string()))
+        })
     }
 }
 

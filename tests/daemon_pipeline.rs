@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use wakatime_focusd::EventLoopOutcome;
@@ -48,13 +48,14 @@ impl MockFocusSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for MockFocusSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        self.rx
-            .recv()
-            .await
-            .ok_or_else(|| FocusError::ConnectionFailed("mock source exhausted".into()))
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            self.rx
+                .recv()
+                .await
+                .ok_or_else(|| FocusError::ConnectionFailed("mock source exhausted".into()))
+        })
     }
 }
 
@@ -85,16 +86,17 @@ impl RecordingSender {
     }
 }
 
-#[async_trait]
 impl HeartbeatSender for RecordingSender {
-    async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        self.sent.lock().unwrap().push(SentRecord {
-            entity: heartbeat.entity.as_str().to_string(),
-            category: heartbeat.category.as_str().to_string(),
-            app_class: heartbeat.source.app_class.clone(),
-            title: heartbeat.source.title.clone(),
-        });
-        Ok(())
+    fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move {
+            self.sent.lock().unwrap().push(SentRecord {
+                entity: heartbeat.entity.as_str().to_string(),
+                category: heartbeat.category.as_str().to_string(),
+                app_class: heartbeat.source.app_class.clone(),
+                title: heartbeat.source.title.clone(),
+            });
+            Ok(())
+        })
     }
 }
 

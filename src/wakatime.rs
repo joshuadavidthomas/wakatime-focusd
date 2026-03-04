@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use anyhow::Result;
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::process::Command;
 use tracing::debug;
 use tracing::error;
@@ -25,10 +25,9 @@ use crate::domain::Heartbeat;
 const ERROR_LOG_RATE_LIMIT: u32 = 10;
 
 /// Trait for sending heartbeats to `WakaTime`.
-#[async_trait]
 pub trait HeartbeatSender: Send {
     /// Send a heartbeat. Returns Ok(()) on success.
-    async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()>;
+    fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>>;
 }
 
 /// `WakaTime` CLI client.
@@ -138,10 +137,9 @@ impl WakaTimeClient {
     }
 }
 
-#[async_trait]
 impl HeartbeatSender for WakaTimeClient {
-    async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        self.send_heartbeat(heartbeat).await
+    fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>> {
+        Box::pin(async move { self.send_heartbeat(heartbeat).await })
     }
 }
 

@@ -6,7 +6,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
 use tokio::net::UnixStream;
@@ -104,43 +104,44 @@ impl HyprlandSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for HyprlandSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        loop {
-            let Some(reader) = &mut self.reader else {
-                self.reconnect().await?;
-                continue;
-            };
-
-            let mut line = String::new();
-            match reader.read_line(&mut line).await {
-                Ok(0) => {
-                    // EOF - socket closed
-                    warn!("Socket2 stream ended (EOF)");
-                    self.reader = None;
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            loop {
+                let Some(reader) = &mut self.reader else {
                     self.reconnect().await?;
-                }
-                Ok(_) => {
-                    trace!("Received line: {}", line.trim());
-                    let event = parse_event_line(&line);
+                    continue;
+                };
 
-                    if let Some(focus_event) = self.state.update(event) {
-                        debug!(
-                            "Focus changed: class={}, title={:?}, window_id={:?}",
-                            focus_event.app_class, focus_event.title, focus_event.window_id
-                        );
-                        return Ok(focus_event);
+                let mut line = String::new();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => {
+                        // EOF - socket closed
+                        warn!("Socket2 stream ended (EOF)");
+                        self.reader = None;
+                        self.reconnect().await?;
                     }
-                    // No event produced, read next line
-                }
-                Err(e) => {
-                    warn!("Read error: {}", e);
-                    self.reader = None;
-                    self.reconnect().await?;
+                    Ok(_) => {
+                        trace!("Received line: {}", line.trim());
+                        let event = parse_event_line(&line);
+
+                        if let Some(focus_event) = self.state.update(event) {
+                            debug!(
+                                "Focus changed: class={}, title={:?}, window_id={:?}",
+                                focus_event.app_class, focus_event.title, focus_event.window_id
+                            );
+                            return Ok(focus_event);
+                        }
+                        // No event produced, read next line
+                    }
+                    Err(e) => {
+                        warn!("Read error: {}", e);
+                        self.reader = None;
+                        self.reconnect().await?;
+                    }
                 }
             }
-        }
+        })
     }
 }
 

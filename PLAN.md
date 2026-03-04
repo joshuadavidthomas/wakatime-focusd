@@ -63,7 +63,7 @@ This inconsistency could confuse users. Consider supporting regex in allowlist/d
 ### Tier 1 — Low-hanging fruit
 
 - [x] **`service install --config <path>`** — embed config path in the generated unit file
-- [ ] **Drop `async_trait`** — use native async trait syntax (edition 2024)
+- [x] **Drop `async_trait`** — use native async trait syntax (edition 2024)
 - [ ] **aarch64-unknown-linux-gnu build** — add to CI matrix
 - [ ] **`SIGHUP` config reload** — standard daemon pattern
 - [ ] **`Display` for `Category`** and `Entity`

@@ -7,7 +7,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::UnixStream;
@@ -178,39 +178,40 @@ impl SwaySource {
     }
 }
 
-#[async_trait]
 impl FocusSource for SwaySource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        loop {
-            if self.stream.is_none() {
-                self.reconnect().await?;
-            }
-
-            match self.read_message().await {
-                Ok((msg_type, payload)) => {
-                    if msg_type != IPC_EVENT_WINDOW {
-                        trace!("Ignoring non-window event type: {msg_type:#x}");
-                        continue;
-                    }
-
-                    let payload_str = String::from_utf8_lossy(&payload);
-                    trace!("Window event: {payload_str}");
-
-                    if let Some(event) = parse_window_event(&payload_str) {
-                        debug!(
-                            "Focus changed: class={}, title={:?}, window_id={:?}",
-                            event.app_class, event.title, event.window_id
-                        );
-                        return Ok(event);
-                    }
-                }
-                Err(e) => {
-                    warn!("Read error: {e}");
-                    self.stream = None;
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            loop {
+                if self.stream.is_none() {
                     self.reconnect().await?;
                 }
+
+                match self.read_message().await {
+                    Ok((msg_type, payload)) => {
+                        if msg_type != IPC_EVENT_WINDOW {
+                            trace!("Ignoring non-window event type: {msg_type:#x}");
+                            continue;
+                        }
+
+                        let payload_str = String::from_utf8_lossy(&payload);
+                        trace!("Window event: {payload_str}");
+
+                        if let Some(event) = parse_window_event(&payload_str) {
+                            debug!(
+                                "Focus changed: class={}, title={:?}, window_id={:?}",
+                                event.app_class, event.title, event.window_id
+                            );
+                            return Ok(event);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Read error: {e}");
+                        self.stream = None;
+                        self.reconnect().await?;
+                    }
+                }
             }
-        }
+        })
     }
 }
 
