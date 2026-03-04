@@ -81,16 +81,33 @@ This writes a fully documented config to `~/.config/wakatime-focusd/config.toml`
 
 The config file is optional — the daemon works out of the box with sensible defaults. Here's what you can customize:
 
+<!-- [[[cog
+import subprocess
+import cog
+
+result = subprocess.run(
+    ["cargo", "run", "-q", "--", "config", "init", "--output", "-"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.DEVNULL,
+)
+output = result.stdout.decode("utf-8").rstrip()
+cog.outl(f"```toml\n{output}\n```")
+]]] -->
 ```toml
+# wakatime-focusd configuration
+# Location: ~/.config/wakatime-focusd/config.toml
+
 # Backend for focus detection (default: "auto")
 # Options: auto, hyprland, sway, gnome, kde, niri, x11
 # "auto" detects your desktop environment automatically.
-backend = "auto"
+# backend = "auto"
 
 # Heartbeat interval in seconds (default: 120)
+# How often to send heartbeats for the same focused app.
 heartbeat_interval_seconds = 120
 
-# Minimum seconds before resending for same entity (default: 120)
+# Minimum seconds before resending heartbeat for the same entity (default: 120)
+# Usually the same as heartbeat_interval_seconds.
 min_entity_resend_seconds = 120
 
 # Whether to include window titles in tracking (default: false)
@@ -147,6 +164,7 @@ idle_check_interval_seconds = 10
 # Dry run mode: log commands instead of executing (default: false)
 dry_run = false
 ```
+<!-- [[[end]]] -->
 
 
 ## Usage
