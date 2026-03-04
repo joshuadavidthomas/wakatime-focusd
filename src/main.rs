@@ -143,7 +143,10 @@ async fn main() -> Result<()> {
                     return cmd_service_install(*now, *force);
                 }
                 ServiceAction::Uninstall => return cmd_service_uninstall(),
-                ServiceAction::Status => return cmd_service_status(),
+                ServiceAction::Status => {
+                    cmd_service_status();
+                    return Ok(());
+                }
             },
             Command::Oneshot { count } => return cmd_oneshot(&args, *count).await,
         }
@@ -347,12 +350,10 @@ fn cmd_service_uninstall() -> Result<()> {
 }
 
 /// `service status` — show the service status.
-#[allow(clippy::unnecessary_wraps)]
-fn cmd_service_status() -> Result<()> {
+fn cmd_service_status() {
     // `systemctl status` returns non-zero for inactive/failed services,
     // which is expected — we just want to show the output.
     let _ = systemctl(&["status", SERVICE_NAME]);
-    Ok(())
 }
 
 /// `oneshot` — capture a few events and exit.
