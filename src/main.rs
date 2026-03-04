@@ -92,7 +92,10 @@ async fn main() -> Result<()> {
     }
 
     // Resolve the backend (auto-detect if needed)
-    let backend = config.backend.resolve().context("Backend detection failed")?;
+    let backend = config
+        .backend
+        .resolve()
+        .context("Backend detection failed")?;
     info!("Using backend: {backend}");
 
     // Show diagnostics
