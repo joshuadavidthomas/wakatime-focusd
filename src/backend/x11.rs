@@ -13,14 +13,14 @@ use tracing::info;
 use tracing::trace;
 use tracing::warn;
 use x11rb::connection::Connection;
+use x11rb::properties::WmClass;
+use x11rb::protocol::Event;
 use x11rb::protocol::xproto::Atom;
 use x11rb::protocol::xproto::AtomEnum;
 use x11rb::protocol::xproto::ChangeWindowAttributesAux;
 use x11rb::protocol::xproto::ConnectionExt;
 use x11rb::protocol::xproto::EventMask;
 use x11rb::protocol::xproto::Window;
-use x11rb::protocol::Event;
-use x11rb::properties::WmClass;
 use x11rb::rust_connection::RustConnection;
 
 use super::FocusError;
@@ -101,7 +101,9 @@ fn run_x11_event_loop(tx: &mpsc::Sender<FocusEvent>) -> Result<(), FocusError> {
         .map_err(|e| FocusError::ConnectionFailed(format!("Failed to flush: {e}")))?;
 
     // Read the initial active window
-    if let Some(event) = read_active_window(&conn, root, net_active_window, net_wm_name, utf8_string) {
+    if let Some(event) =
+        read_active_window(&conn, root, net_active_window, net_wm_name, utf8_string)
+    {
         debug!(
             "Initial focus: class={}, title={:?}",
             event.app_class, event.title
@@ -217,11 +219,7 @@ fn read_window_title(
         .ok()?;
 
     let title = String::from_utf8_lossy(&reply.value).to_string();
-    if title.is_empty() {
-        None
-    } else {
-        Some(title)
-    }
+    if title.is_empty() { None } else { Some(title) }
 }
 
 /// Get a UTF-8 string property from a window.
