@@ -111,8 +111,15 @@ async fn run_pipeline(events: Vec<FocusEvent>, config: Config) -> Vec<SentRecord
     // Disable idle monitoring so it doesn't try to reach D-Bus
     idle_monitor.disable();
 
-    let outcome =
-        run_event_loop(Box::new(source), &config, &sender, &idle_monitor, &shutdown, false).await;
+    let outcome = run_event_loop(
+        Box::new(source),
+        &config,
+        &sender,
+        &idle_monitor,
+        &shutdown,
+        false,
+    )
+    .await;
 
     // Should always end with SourceError when mock is exhausted
     assert!(
@@ -309,7 +316,15 @@ async fn test_idle_transitions() {
     };
 
     let handle = tokio::spawn(async move {
-        run_event_loop(Box::new(source), &config, &sender, &idle_ref, &shutdown, false).await
+        run_event_loop(
+            Box::new(source),
+            &config,
+            &sender,
+            &idle_ref,
+            &shutdown,
+            false,
+        )
+        .await
     });
 
     // Send event while not idle — should be sent
@@ -366,9 +381,15 @@ async fn test_periodic_heartbeat_timer() {
     let handle = tokio::spawn({
         let sent_arc = Arc::clone(&sent_arc);
         async move {
-            let outcome =
-                run_event_loop(Box::new(source), &config, &sender, &idle_monitor, &shutdown, false)
-                    .await;
+            let outcome = run_event_loop(
+                Box::new(source),
+                &config,
+                &sender,
+                &idle_monitor,
+                &shutdown,
+                false,
+            )
+            .await;
             (outcome, sent_arc)
         }
     });
@@ -427,9 +448,15 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
     let handle = tokio::spawn({
         let sent_arc = Arc::clone(&sent_arc);
         async move {
-            let outcome =
-                run_event_loop(Box::new(source), &config, &sender, &idle_ref, &shutdown, false)
-                    .await;
+            let outcome = run_event_loop(
+                Box::new(source),
+                &config,
+                &sender,
+                &idle_ref,
+                &shutdown,
+                false,
+            )
+            .await;
             (outcome, sent_arc)
         }
     });
