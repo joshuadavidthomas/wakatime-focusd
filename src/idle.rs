@@ -40,6 +40,7 @@ pub struct IdleMonitor {
 
 impl IdleMonitor {
     /// Create a new idle monitor.
+    #[must_use] 
     pub fn new() -> Self {
         Self {
             idle_hint: AtomicBool::new(false),
