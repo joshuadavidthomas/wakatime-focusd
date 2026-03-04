@@ -55,6 +55,12 @@ wakatime-focusd service install
 systemctl --user enable --now wakatime-focusd.service
 ```
 
+If you use a custom config path or want to pin a specific backend, pass the global `--config` and/or `--backend` flags _before_ the `service install` subcommand. They will be embedded in the generated unit file's `ExecStart` line:
+
+```bash
+wakatime-focusd --config ~/.config/wakatime-focusd/custom.toml --backend sway service install --now
+```
+
 To uninstall the service:
 
 ```bash
@@ -129,7 +135,9 @@ title_strategy = "ignore"
 # See: https://wakatime.com/developers#heartbeats
 default_category = "coding"
 
-# Category rules - first match wins (case-insensitive regex)
+# Category rules - first match wins (case-insensitive regex, substring match).
+# Patterns match anywhere in the app class. Use ^...$ anchors for exact matches,
+# e.g. "^code$" matches only "code", not "unicode-input".
 # [[category_rules]]
 # pattern = "firefox|chromium|brave|zen-browser"
 # category = "browsing"
@@ -407,6 +415,8 @@ $ wakatime-focusd service install --help
 Install the systemd user service.
 
 Generates a service unit file pointing to the current binary and writes it to ~/.config/systemd/user/. Runs `systemctl --user daemon-reload` after installation.
+
+If --config or --backend are provided, the corresponding flags are embedded in the `ExecStart` line of the generated unit file so the daemon uses them when started by systemd.
 
 Usage: wakatime-focusd service install [OPTIONS]
 

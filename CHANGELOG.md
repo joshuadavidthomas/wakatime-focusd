@@ -20,6 +20,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
+- **`service install` flag passthrough** — the global `--config` and `--backend` CLI flags are now embedded in the generated systemd unit file's `ExecStart` line. Previously, users had to manually edit the unit file to use a custom config path or pin a backend. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.
 - **COSMIC backend** — dedicated backend for the COSMIC desktop environment (Pop!_OS default) using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
 - **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
 - **Graceful shutdown** — the daemon now handles `SIGINT` and `SIGTERM` signals and exits cleanly, instead of being abruptly killed.
