@@ -174,11 +174,7 @@ impl NiriSource {
                     app_id, title
                 );
 
-                Some(FocusEvent::new(
-                    app_id.clone(),
-                    title,
-                    Some(id.to_string()),
-                ))
+                Some(FocusEvent::new(app_id.clone(), title, Some(id.to_string())))
             }
         }
     }
@@ -199,9 +195,7 @@ fn get_socket_path() -> Result<PathBuf, FocusError> {
 }
 
 /// Connect to the Niri socket and subscribe to the event stream.
-async fn connect_and_subscribe(
-    socket_path: &PathBuf,
-) -> Result<BufReader<UnixStream>, FocusError> {
+async fn connect_and_subscribe(socket_path: &PathBuf) -> Result<BufReader<UnixStream>, FocusError> {
     let mut stream = UnixStream::connect(socket_path)
         .await
         .map_err(|e| FocusError::ConnectionFailed(e.to_string()))?;
@@ -240,15 +234,9 @@ async fn connect_and_subscribe(
 #[derive(Debug, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 enum NiriEvent {
-    WindowOpenedOrChanged {
-        window: NiriWindow,
-    },
-    WindowClosed {
-        id: u64,
-    },
-    WindowFocusChanged {
-        id: Option<u64>,
-    },
+    WindowOpenedOrChanged { window: NiriWindow },
+    WindowClosed { id: u64 },
+    WindowFocusChanged { id: Option<u64> },
 }
 
 /// Window data from Niri IPC.
@@ -295,15 +283,13 @@ mod tests {
     fn test_parse_window_focus_changed_none() {
         let json = r#"{"WindowFocusChanged":{"id":null}}"#;
         let event: NiriEvent = serde_json::from_str(json).unwrap();
-        assert!(matches!(
-            event,
-            NiriEvent::WindowFocusChanged { id: None }
-        ));
+        assert!(matches!(event, NiriEvent::WindowFocusChanged { id: None }));
     }
 
     #[test]
     fn test_parse_window_opened_or_changed() {
-        let json = r#"{"WindowOpenedOrChanged":{"window":{"id":1,"title":"Terminal","app_id":"foot"}}}"#;
+        let json =
+            r#"{"WindowOpenedOrChanged":{"window":{"id":1,"title":"Terminal","app_id":"foot"}}}"#;
         let event: NiriEvent = serde_json::from_str(json).unwrap();
         match event {
             NiriEvent::WindowOpenedOrChanged { window } => {

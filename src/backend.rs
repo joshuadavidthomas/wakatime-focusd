@@ -15,16 +15,16 @@ use std::fmt;
 
 use async_trait::async_trait;
 use clap::ValueEnum;
-pub use gnome::GnomeSource;
-pub use hyprland::HyprlandSource;
-pub use kde::KdeSource;
-pub use niri::NiriSource;
+use gnome::GnomeSource;
+use hyprland::HyprlandSource;
+use kde::KdeSource;
+use niri::NiriSource;
 use serde::Deserialize;
 use serde::Serialize;
-pub use sway::SwaySource;
+use sway::SwaySource;
 use thiserror::Error;
 use tracing::info;
-pub use x11::X11Source;
+use x11::X11Source;
 
 /// Backend-agnostic focus event.
 #[derive(Debug, Clone)]
