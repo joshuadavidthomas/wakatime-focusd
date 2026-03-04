@@ -246,8 +246,10 @@ fn parse_event_line(line: &str) -> HyprlandEvent {
 
 /// State tracker for building complete focus events.
 ///
-/// We may receive activewindow and activewindowv2 in sequence,
-/// so we need to correlate them.
+/// Hyprland may emit `activewindowv2` (address) *after* `activewindow`
+/// (class/title), so the address attached to an event may be from the
+/// *previous* focus change. This is acceptable because `window_id` is not
+/// used downstream for anything critical — it's purely informational.
 #[derive(Debug, Default)]
 struct FocusState {
     current_address: Option<String>,
