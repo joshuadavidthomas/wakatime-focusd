@@ -167,9 +167,7 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = GnomeSource::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Kde | Backend::Niri => {
-            Err(FocusError::BackendNotImplemented(resolved))
-        }
+        Backend::Kde | Backend::Niri => Err(FocusError::BackendNotImplemented(resolved)),
         Backend::Auto => unreachable!("Auto should have been resolved"),
     }
 }

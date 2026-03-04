@@ -149,9 +149,7 @@ impl FocusSource for GnomeSource {
 }
 
 /// Find the focused window from a `GetWindows()` response.
-fn find_focused_window(
-    windows: &HashMap<u64, HashMap<String, OwnedValue>>,
-) -> Option<FocusEvent> {
+fn find_focused_window(windows: &HashMap<u64, HashMap<String, OwnedValue>>) -> Option<FocusEvent> {
     for (window_id, props) in windows {
         let has_focus = props
             .get("has-focus")
@@ -210,15 +208,9 @@ mod tests {
             "wm-class".to_string(),
             Value::from(wm_class).try_into().unwrap(),
         );
-        props.insert(
-            "title".to_string(),
-            Value::from(title).try_into().unwrap(),
-        );
+        props.insert("title".to_string(), Value::from(title).try_into().unwrap());
         if let Some(id) = app_id {
-            props.insert(
-                "app-id".to_string(),
-                Value::from(id).try_into().unwrap(),
-            );
+            props.insert("app-id".to_string(), Value::from(id).try_into().unwrap());
         }
         props
     }
