@@ -65,10 +65,7 @@ trait KWinScripting {
 }
 
 /// D-Bus proxy for a loaded `KWin` script instance.
-#[proxy(
-    interface = "org.kde.kwin.Script",
-    default_service = "org.kde.KWin"
-)]
+#[proxy(interface = "org.kde.kwin.Script", default_service = "org.kde.KWin")]
 trait KWinScript {
     fn run(&self) -> zbus::Result<()>;
 }
@@ -199,11 +196,9 @@ impl Drop for KdeSource {
 impl FocusSource for KdeSource {
     async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
         loop {
-            let event = self
-                .rx
-                .recv()
-                .await
-                .ok_or_else(|| FocusError::ConnectionFailed("KWin callback channel closed".to_string()))?;
+            let event = self.rx.recv().await.ok_or_else(|| {
+                FocusError::ConnectionFailed("KWin callback channel closed".to_string())
+            })?;
 
             // Skip empty focus events
             if event.is_empty() {
