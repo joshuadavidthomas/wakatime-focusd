@@ -20,6 +20,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
+- **aarch64 (ARM64) prebuilt binaries** — GitHub releases now include `aarch64-unknown-linux-gnu` binaries alongside x86_64, covering Raspberry Pi, Asahi Linux (Apple Silicon), and other ARM64 Linux systems.
 - **`service install` flag passthrough** — the global `--config` and `--backend` CLI flags are now embedded in the generated systemd unit file's `ExecStart` line. Previously, users had to manually edit the unit file to use a custom config path or pin a backend. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.
 - **COSMIC backend** — dedicated backend for the COSMIC desktop environment (Pop!_OS default) using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
 - **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
