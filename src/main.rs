@@ -195,6 +195,12 @@ fn load_config(args: &Args) -> Result<Config> {
 
 /// `init` — create a default config file.
 fn cmd_init(output: Option<&Path>, force: bool) -> Result<()> {
+    // `--output -` writes to stdout
+    if output == Some(Path::new("-")) {
+        print!("{}", Config::template());
+        return Ok(());
+    }
+
     let path = match output {
         Some(p) => p.to_path_buf(),
         None => default_config_path()?,
