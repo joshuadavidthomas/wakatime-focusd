@@ -18,6 +18,10 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Added
+
+- **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
+
 ## [0.2.0]
 
 ### Added
