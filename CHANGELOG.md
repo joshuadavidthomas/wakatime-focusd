@@ -20,35 +20,35 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
-- **aarch64 (ARM64) prebuilt binaries** — GitHub releases now include `aarch64-unknown-linux-gnu` binaries alongside x86_64, covering Raspberry Pi, Asahi Linux (Apple Silicon), and other ARM64 Linux systems.
-- **`service install` flag passthrough** — the global `--config` and `--backend` CLI flags are now embedded in the generated systemd unit file's `ExecStart` line. Previously, users had to manually edit the unit file to use a custom config path or pin a backend. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.
-- **COSMIC backend** — dedicated backend for the COSMIC desktop environment (Pop!_OS default) using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
-- **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
-- **Graceful shutdown** — the daemon now handles `SIGINT` and `SIGTERM` signals and exits cleanly, instead of being abruptly killed.
-- **Automatic reconnection with backoff** — the daemon now survives compositor restarts. If the backend connection is lost, it retries with exponential backoff (up to 30 seconds) instead of crashing.
+- aarch64 (ARM64) prebuilt binaries in GitHub releases, alongside x86_64
+- `service install` now passes through `--config` and `--backend` flags into the generated systemd unit file's `ExecStart` line. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.
+- COSMIC backend using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
+- wlr-foreign-toplevel backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, for River, Wayfire, labwc, dwl, and other compositors implementing this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
+- Graceful shutdown on `SIGINT` and `SIGTERM`
+- Automatic reconnection with exponential backoff (up to 30s) when the backend connection is lost
 
 ### Changed
 
-- Category rule patterns in the config file now document that they are **substring matches** (not exact). Use `^...$` anchors for exact matching (e.g. `"^code$"` to match only `"code"`, not `"unicode-input"`).
+- Category rule patterns in the config file now document that they are substring matches, not exact. Use `^...$` anchors for exact matching (e.g. `"^code$"` to match only `"code"`, not `"unicode-input"`).
 
 ## [0.2.0]
 
 ### Added
 
-- **Multi-desktop support** — wakatime-focusd now works on most Linux desktop environments, not just Hyprland:
-  - **Sway** — native IPC tracking for both Wayland and XWayland windows
-  - **GNOME Shell** — focus tracking via D-Bus
-  - **KDE Plasma** — focus tracking via KWin scripting and D-Bus
-  - **Niri** — native IPC tracking via Niri's JSON socket
-  - **X11** — generic fallback for any EWMH-compliant window manager (i3, bspwm, awesome, openbox, etc.)
-- **Automatic backend detection** — the daemon detects your desktop environment and picks the right backend. No configuration needed in most cases.
+- Multi-desktop support beyond Hyprland:
+  - Sway — native IPC tracking for both Wayland and XWayland windows
+  - GNOME Shell — focus tracking via D-Bus
+  - KDE Plasma — focus tracking via KWin scripting and D-Bus
+  - Niri — native IPC tracking via Niri's JSON socket
+  - X11 — generic fallback for any EWMH-compliant window manager (i3, bspwm, awesome, openbox, etc.)
+- Automatic backend detection based on desktop environment
 - `--backend` CLI flag and `backend` config option for manual override (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
-- `wakatime-focusd config init` command — generates a documented default config file at `~/.config/wakatime-focusd/config.toml` (with `--output` and `--force` options)
-- `wakatime-focusd config dump` command — prints the resolved configuration (after CLI overrides) and exits, useful for debugging
-- `wakatime-focusd service install` command — generates and installs the systemd user service file, using the current binary path for `ExecStart` (with `--now` to enable/start immediately and `--force` to overwrite)
-- `wakatime-focusd service uninstall` command — stops, disables, and removes the systemd user service
-- `wakatime-focusd service status` command — shows the service status
-- Comprehensive integration test suite covering all backends, the full event pipeline, and reconnection behavior
+- `wakatime-focusd config init` — generates a documented default config file at `~/.config/wakatime-focusd/config.toml` (with `--output` and `--force` options)
+- `wakatime-focusd config dump` — prints the resolved configuration (after CLI overrides) and exits
+- `wakatime-focusd service install` — generates and installs the systemd user service file, using the current binary path for `ExecStart` (with `--now` to enable/start immediately and `--force` to overwrite)
+- `wakatime-focusd service uninstall` — stops, disables, and removes the systemd user service
+- `wakatime-focusd service status` — shows the service status
+- Integration test suite covering all backends, the event pipeline, and reconnection behavior
 
 ### Changed
 
@@ -56,7 +56,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Removed
 
-- `contrib/` directory — the static service file and example config are replaced by the `service install` and `config init` commands
+- `contrib/` directory, replaced by the `service install` and `config init` commands
 
 ## [0.1.3]
 
@@ -86,7 +86,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Changed
 
-- **Internal**: Refactored module structure from `mod.rs` pattern to named modules
+- **Internal:** Refactored module structure from `mod.rs` pattern to named modules
 
 ## [0.1.0]
 
