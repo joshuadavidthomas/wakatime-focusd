@@ -20,7 +20,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
-- `SIGHUP` config reload — send `kill -HUP $(pidof wakatime-focusd)` or `systemctl --user reload wakatime-focusd` to reload the configuration file without restarting the daemon. All settings except `backend` are applied immediately; changing the backend requires a full restart. The generated systemd unit now includes an `ExecReload` directive so `systemctl --user reload` works out of the box.
+- `SIGHUP` config reload — `systemctl --user reload wakatime-focusd` or `kill -HUP` to apply config changes without restarting. All settings except `backend` take effect immediately.
 - aarch64 (ARM64) prebuilt binaries in GitHub releases, alongside x86_64
 - `service install` now passes through `--config` and `--backend` flags into the generated systemd unit file's `ExecStart` line. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.
 - COSMIC backend using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
