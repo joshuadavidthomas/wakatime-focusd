@@ -34,6 +34,9 @@ pub struct IdleMonitor {
     /// Session object path in `DBus`.
     session_path: RwLock<Option<String>>,
 
+    /// Cached `DBus` system connection, reused across polls.
+    connection: RwLock<Option<Connection>>,
+
     /// Whether idle monitoring is available/enabled.
     enabled: AtomicBool,
 }
@@ -45,6 +48,7 @@ impl IdleMonitor {
         Self {
             idle_hint: AtomicBool::new(false),
             session_path: RwLock::new(None),
+            connection: RwLock::new(None),
             enabled: AtomicBool::new(true),
         }
     }
@@ -60,7 +64,7 @@ impl IdleMonitor {
         self.idle_hint.load(Ordering::Relaxed)
     }
 
-    /// Initialize the monitor by resolving the session path.
+    /// Initialize the monitor by connecting to D-Bus and resolving the session path.
     pub async fn init(&self) -> Result<()> {
         let conn = Connection::system()
             .await
@@ -70,22 +74,21 @@ impl IdleMonitor {
         info!("Resolved session path: {}", session_path);
 
         *self.session_path.write().await = Some(session_path);
+        *self.connection.write().await = Some(conn);
         Ok(())
     }
 
     /// Poll the current idle state from `DBus`.
     ///
-    /// This updates the cached `idle_hint` value.
+    /// This updates the cached `idle_hint` value. Reuses the cached D-Bus
+    /// connection established during `init()`, reconnecting if necessary.
     pub async fn poll_idle_state(&self) -> Result<bool> {
         let session_path = self.session_path.read().await;
         let Some(ref path) = *session_path else {
             return Ok(false); // Not initialized
         };
 
-        let conn = Connection::system()
-            .await
-            .context("Failed to connect to system DBus")?;
-
+        let conn = self.get_or_reconnect().await?;
         let idle = get_idle_hint(&conn, path).await?;
         let prev = self.idle_hint.swap(idle, Ordering::Relaxed);
 
@@ -96,6 +99,23 @@ impl IdleMonitor {
         }
 
         Ok(idle)
+    }
+
+    /// Return the cached D-Bus connection or establish a new one.
+    async fn get_or_reconnect(&self) -> Result<Connection> {
+        {
+            let guard = self.connection.read().await;
+            if let Some(ref conn) = *guard {
+                return Ok(conn.clone());
+            }
+        }
+
+        debug!("D-Bus connection not cached, reconnecting");
+        let conn = Connection::system()
+            .await
+            .context("Failed to connect to system DBus")?;
+        *self.connection.write().await = Some(conn.clone());
+        Ok(conn)
     }
 
     /// Disable idle monitoring (fallback mode).
