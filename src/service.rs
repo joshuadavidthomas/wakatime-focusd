@@ -12,6 +12,7 @@ use std::process::Command;
 
 use anyhow::Context;
 use anyhow::Result;
+use wakatime_focusd::backend::Backend;
 
 const SERVICE_NAME: &str = "wakatime-focusd.service";
 
@@ -21,8 +22,28 @@ fn service_file_path() -> Result<PathBuf> {
     Ok(config_dir.join("systemd/user").join(SERVICE_NAME))
 }
 
+/// Build the `ExecStart` value from the binary path and optional CLI flags.
+fn build_exec_start(binary_path: &Path, config_path: Option<&Path>, backend: Backend) -> String {
+    let mut parts = vec![binary_path.display().to_string()];
+
+    if let Some(cfg) = config_path {
+        parts.push(format!("--config {}", cfg.display()));
+    }
+
+    if backend != Backend::Auto {
+        parts.push(format!("--backend {backend}"));
+    }
+
+    parts.join(" ")
+}
+
 /// Generate the systemd service unit file contents.
-fn generate_service_unit(binary_path: &Path) -> String {
+fn generate_service_unit(
+    binary_path: &Path,
+    config_path: Option<&Path>,
+    backend: Backend,
+) -> String {
+    let exec_start = build_exec_start(binary_path, config_path, backend);
     format!(
         "\
 [Unit]
@@ -33,7 +54,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart={binary_path}
+ExecStart={exec_start}
 Restart=on-failure
 RestartSec=2
 Environment=RUST_LOG=info
@@ -42,8 +63,7 @@ StandardError=journal
 
 [Install]
 WantedBy=graphical-session.target
-",
-        binary_path = binary_path.display()
+"
     )
 }
 
@@ -69,11 +89,25 @@ fn systemctl(args: &[&str]) -> Result<bool> {
 }
 
 /// Install the systemd user service.
-pub fn install(now: bool, force: bool) -> Result<()> {
+///
+/// When `config_path` or a non-`Auto` `backend` is provided, the
+/// corresponding CLI flags are embedded in the `ExecStart` line of the
+/// generated unit file so the daemon picks them up when started by systemd.
+pub fn install(now: bool, force: bool, config_path: Option<&Path>, backend: Backend) -> Result<()> {
     let binary_path = std::env::current_exe().context("Could not determine binary path")?;
     let binary_path = binary_path
         .canonicalize()
         .context("Could not resolve binary path")?;
+
+    // Canonicalize the config path so the unit file contains an absolute path
+    // that won't break when systemd starts the daemon from a different cwd.
+    let config_path = config_path
+        .map(|p| {
+            p.canonicalize()
+                .with_context(|| format!("Could not resolve config path {}", p.display()))
+        })
+        .transpose()?;
+
     let service_path = service_file_path()?;
 
     if service_path.exists() && !force {
@@ -88,7 +122,7 @@ pub fn install(now: bool, force: bool) -> Result<()> {
             .with_context(|| format!("Failed to create directory {}", parent.display()))?;
     }
 
-    let unit = generate_service_unit(&binary_path);
+    let unit = generate_service_unit(&binary_path, config_path.as_deref(), backend);
     fs::write(&service_path, &unit)
         .with_context(|| format!("Failed to write service file to {}", service_path.display()))?;
     println!("Service file written to {}", service_path.display());
@@ -142,4 +176,70 @@ pub fn status() {
     // `systemctl status` returns non-zero for inactive/failed services,
     // which is expected — we just want to show the output.
     let _ = systemctl(&["status", SERVICE_NAME]);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use wakatime_focusd::backend::Backend;
+
+    use super::*;
+
+    #[test]
+    fn exec_start_bare_binary() {
+        let result = build_exec_start(Path::new("/usr/bin/wakatime-focusd"), None, Backend::Auto);
+        assert_eq!(result, "/usr/bin/wakatime-focusd");
+    }
+
+    #[test]
+    fn exec_start_with_config() {
+        let result = build_exec_start(
+            Path::new("/usr/bin/wakatime-focusd"),
+            Some(Path::new("/home/user/.config/wakatime-focusd/custom.toml")),
+            Backend::Auto,
+        );
+        assert_eq!(
+            result,
+            "/usr/bin/wakatime-focusd --config /home/user/.config/wakatime-focusd/custom.toml"
+        );
+    }
+
+    #[test]
+    fn exec_start_with_backend() {
+        let result = build_exec_start(Path::new("/usr/bin/wakatime-focusd"), None, Backend::Sway);
+        assert_eq!(result, "/usr/bin/wakatime-focusd --backend sway");
+    }
+
+    #[test]
+    fn exec_start_with_config_and_backend() {
+        let result = build_exec_start(
+            Path::new("/usr/bin/wakatime-focusd"),
+            Some(Path::new("/etc/wakatime.toml")),
+            Backend::Hyprland,
+        );
+        assert_eq!(
+            result,
+            "/usr/bin/wakatime-focusd --config /etc/wakatime.toml --backend hyprland"
+        );
+    }
+
+    #[test]
+    fn unit_file_contains_exec_start_with_flags() {
+        let unit = generate_service_unit(
+            Path::new("/usr/bin/wakatime-focusd"),
+            Some(Path::new("/home/user/config.toml")),
+            Backend::Gnome,
+        );
+        assert!(unit.contains(
+            "ExecStart=/usr/bin/wakatime-focusd --config /home/user/config.toml --backend gnome"
+        ));
+    }
+
+    #[test]
+    fn unit_file_bare_exec_start_when_defaults() {
+        let unit =
+            generate_service_unit(Path::new("/usr/bin/wakatime-focusd"), None, Backend::Auto);
+        assert!(unit.contains("ExecStart=/usr/bin/wakatime-focusd\n"));
+    }
 }

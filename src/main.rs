@@ -101,6 +101,10 @@ enum ServiceAction {
     /// Generates a service unit file pointing to the current binary and writes
     /// it to ~/.config/systemd/user/. Runs `systemctl --user daemon-reload`
     /// after installation.
+    ///
+    /// If --config or --backend are provided, the corresponding flags are
+    /// embedded in the `ExecStart` line of the generated unit file so the
+    /// daemon uses them when started by systemd.
     Install {
         /// Enable and start the service immediately after installing.
         #[arg(long)]
@@ -142,7 +146,7 @@ async fn main() -> Result<()> {
             },
             Command::Service { action } => match action {
                 ServiceAction::Install { now, force } => {
-                    return service::install(*now, *force);
+                    return service::install(*now, *force, args.config.as_deref(), args.backend);
                 }
                 ServiceAction::Uninstall => return service::uninstall(),
                 ServiceAction::Status => {

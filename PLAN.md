@@ -1,75 +1,85 @@
 # wakatime-focusd Review & Improvement Plan
 
-## Issues
+## The Good
 
-### 1. D-Bus connection created on every idle poll
+1. **Architecture is genuinely excellent.** The pipeline design — `FocusSource → HeartbeatBuilder → HeartbeatThrottle → HeartbeatSender` — is clean, decoupled, and testable. The trait-based dependency injection (`FocusSource`, `HeartbeatSender`) lets integration tests run the full pipeline without a desktop, D-Bus, or wakatime-cli.
 
-**File:** `src/idle.rs:97-99`
+2. **Backend breadth is impressive.** 8 backends covering essentially every Linux desktop environment, each using native protocols (IPC sockets, D-Bus, Wayland protocols, X11 EWMH). The auto-detection cascade is well-ordered and sensible.
 
-`poll_idle_state()` calls `Connection::system().await` on every invocation (default: every 10 seconds). This creates a new D-Bus connection each time instead of reusing one. Store the connection alongside `session_path` in the struct:
+3. **Test quality is high.** The `daemon_pipeline.rs` integration tests cover the full pipeline including throttle dedup, idle gating, idle transitions, periodic timer, allowlist/denylist, category rules, and title strategies. Per-backend tests spin up real protocol servers (Wayland server, Xvfb, D-Bus launch).
 
-```rust
-pub struct IdleMonitor {
-    idle_hint: AtomicBool,
-    session_path: RwLock<Option<String>>,
-    connection: RwLock<Option<Connection>>,  // add this
-    enabled: AtomicBool,
-}
-```
+4. **Operational polish is unusual for a personal project.** Self-installing systemd service, `config init` with documented template, `config dump` for debugging, `oneshot` mode, exponential backoff reconnection, rate-limited error logging, graceful signal handling. The CHANGELOG is well-maintained. The README is thorough with troubleshooting guidance.
 
-Initialize it in `init()` and reuse in `poll_idle_state()`.
+5. **Code quality is clean.** Clippy pedantic is enabled, formatting is enforced, the module structure is flat and navigable, domain types use newtypes (`Entity`), and error handling is sensible (anyhow for the binary, thiserror for the library error type).
 
-### 2. No graceful shutdown / signal handling
+## Areas for Improvement
 
-**File:** `src/main.rs:266-282`
+### `service.rs` doesn't pass through CLI flags
 
-The daemon loop has no `SIGTERM`/`SIGINT` handling. When systemd stops the service, `tokio::main` is abruptly interrupted. Consider adding `tokio::signal::ctrl_c()` or `tokio::signal::unix::signal(SignalKind::terminate())` to the `run_daemon` loop, allowing a clean exit and optionally flushing a final heartbeat.
+The generated systemd unit hardcodes `ExecStart={binary_path}` with no arguments. If a user has `--config /custom/path.toml` or `--backend sway`, they have to manually edit the unit file. `service install` should accept and embed these flags, or at minimum pass through the `--config` flag.
 
-### 3. Reconnect loop has no delay between backend connect failures
+### No config file watching / reload
 
-**File:** `src/main.rs:274-281`
+Changing config requires `systemctl --user restart wakatime-focusd`. A `SIGHUP` handler to reload config (or inotify on the config file) would be a nice daemon affordance. Not urgent, but it's a standard daemon pattern.
 
-If `backend::connect()` fails repeatedly (e.g., socket doesn't exist yet after compositor restart), this loop hammers `connect()` with no backoff:
+### `zbus::Proxy` is recreated on every idle poll
 
-```rust
-loop {
-    let source = wakatime_focusd::backend::connect(backend).await?;  // fails with ?
-    ...
-}
-```
+In `idle.rs`, `get_idle_hint()` creates a new `zbus::Proxy` on every call (every 10s). Proxies are lightweight in zbus 5, but caching it alongside the connection would be cleaner and slightly more efficient.
 
-The `?` propagates immediately to `main`, crashing the daemon. If you want reconnection resilience at this level (not just inside backends), add a backoff loop or `tokio::time::sleep` before retrying.
+### No installation path beyond building from source
 
-### 4. Idle polling task never exits
+The only way to install is `git clone` + `cargo build --release` + manual copy to `~/.local/bin/`. There's no crates.io publish, no prebuilt binaries attached to GitHub releases (the release workflow builds them but discoverability is low), and no distro packages. This is the biggest barrier to adoption.
 
-**File:** `src/idle.rs:125-143`
+### No health/status endpoint
 
-`start_polling` spawns a task with an infinite `loop`. It can only exit if `init()` fails. There's no way to stop it (no cancellation token, no shutdown signal). The `Arc<IdleMonitor>` keeps it alive forever. Consider accepting a `CancellationToken` or `tokio::sync::watch` for clean shutdown.
+There's no way to query the daemon's internal state (current backend, last heartbeat entity/time, idle state, error count) without reading journal logs. A small Unix socket or `sd_notify` integration would help debugging.
 
-### 5. Global mutable state for error rate limiting
+### The `async_trait` crate is unnecessary on edition 2024
 
-**File:** `src/wakatime.rs:30`
+Rust 1.75+ supports `async fn` in traits natively. You're on edition 2024 — you can drop `async_trait` from both `FocusSource` and `HeartbeatSender`. This removes a dependency and the hidden `Box<dyn Future>` allocations.
 
-`static ERROR_LOG_COUNT: AtomicU32` is process-global and never resets. This means:
+### No `Display` impl for `Category`
 
-- After `u32::MAX` errors it wraps (minor)
-- In tests, the counter leaks between test cases
-- The rate limiting logic is untestable in isolation
+`Category::as_str()` exists but there's no `Display` impl, so you can't use `{}` formatting directly. Minor, but it's the idiomatic Rust pattern.
 
-Consider moving this counter into `WakaTimeClient` as a field instead.
+### `wakatime-cli` output is captured but not logged on success
 
-### 6. Category regex patterns match substrings
+`stdout` and `stderr` are piped but only stderr is logged on failure. On success, stdout is silently discarded. If wakatime-cli ever emits useful info (rate limit warnings, etc.), it would be lost.
 
-**File:** `src/heartbeat.rs`
+### Build CI only targets x86_64-unknown-linux-gnu
 
-`Regex::is_match` matches anywhere in the string. A pattern like `"code"` would match `app_class = "unicode-input"`. Consider anchoring patterns or documenting this behavior prominently. Users might expect exact matches.
+No cross-compilation for aarch64 (Raspberry Pi, Asahi Linux). Given this is a Linux-only tool, aarch64 is the main missing target.
 
-## Minor / Nits
+### No `--version` output includes git commit hash
 
-- **`FocusEvent` ordering in Hyprland** (`src/backend/hyprland.rs`): `activewindowv2` can arrive *after* `activewindow`, meaning the address attached to a focus event may be from the *previous* window switch. This is a known Hyprland IPC ordering quirk — the current behavior (stale address) is probably fine since `window_id` isn't used downstream, but worth a comment.
+The version is logged at startup, but `wakatime-focusd --version` doesn't show the git commit hash. For a daemon, knowing the exact build is valuable for bug reports.
 
-- **`service.rs` uses blocking `std::process::Command`** (`src/service.rs:47-59`): Fine today since service subcommands exit before the async runtime starts, but if this code is ever called from an async context it would block the executor. A comment noting this assumption would help.
+### Allowlist/denylist use exact string matching, but category rules use regex
 
-- **`Heartbeat` cloned unnecessarily for periodic resend** (`src/lib.rs:69`, `src/lib.rs:82`): The periodic timer path clones `last_heartbeat.source` to rebuild a heartbeat that's structurally identical to the one already stored. Consider having the periodic path just re-send the stored `Heartbeat` directly instead of rebuilding it.
+This inconsistency could confuse users. Consider supporting regex in allowlist/denylist too, or at least documenting the difference prominently.
 
-- **No `reconnect_delay` between backend reconnects in the outer daemon loop** (`src/main.rs`): The inner backends (Hyprland, Sway) have exponential backoff, but the outer `run_daemon` loop doesn't — if the inner loop returns `SourceError`, it immediately tries `connect()` again.
+## Roadmap
+
+### Tier 1 — Low-hanging fruit
+
+- [x] **`service install --config <path>`** — embed config path in the generated unit file
+- [ ] **Drop `async_trait`** — use native async trait syntax (edition 2024)
+- [ ] **aarch64-unknown-linux-gnu build** — add to CI matrix
+- [ ] **`SIGHUP` config reload** — standard daemon pattern
+- [ ] **`Display` for `Category`** and `Entity`
+- [ ] **`cargo-dist`** — generates the install.sh script, GitHub Release CI, platform matrix builds, and `cargo-binstall` metadata in one shot. Replaces the hand-rolled release workflow and solves install.sh, cross-compilation, and binary distribution all at once.
+
+### Tier 2 — Valuable additions
+
+- [ ] **Project detection** — detect the project from the focused window (e.g., parse terminal title for cwd, read IDE window title for project name) and pass `--project` to wakatime-cli. This is the single most impactful missing feature — without it, all app time goes into an "unassigned" bucket in WakaTime.
+- [ ] **Heartbeat batching** — wakatime-cli supports `--extra-heartbeats` via stdin (JSON array). Batching reduces process spawns, especially during rapid focus switching.
+- [ ] **Offline queue** — if wakatime-cli fails (network down), queue heartbeats to a local file and replay them later. wakatime-cli has its own offline queue, but catching spawn failures (binary missing, permissions) at the daemon level would be more resilient.
+- [ ] **Metrics / status socket** — expose internal state (last entity, heartbeat count, error count, idle state, uptime) via a Unix socket or `sd_notify` STATUS string.
+
+### Tier 3 — Bigger lifts
+
+- [ ] **macOS support** — use `NSWorkspace` notifications for active app tracking + launchd instead of systemd. Would require abstracting the idle monitor and service management.
+- [ ] **Direct API integration** — bypass wakatime-cli entirely and POST heartbeats to the WakaTime API directly (the API is well-documented). Eliminates the process-spawn overhead and the wakatime-cli dependency.
+- [ ] **Packaging** — AUR package, Nix flake, Fedora COPR, `.deb`/`.rpm` via `cargo-deb`/`cargo-generate-rpm`. The `service install` command partially replaces this, but distribution packages handle updates and discoverability.
+- [ ] **Plugin system for backends** — if more backends keep coming, a trait-object plugin architecture (or even dynamic loading) could keep the binary size in check. Not needed yet with 8 backends, but worth considering.
+- [ ] **Window-level time tracking** — track individual windows, not just app classes. Combined with title tracking, this could provide per-tab or per-document time breakdowns.
