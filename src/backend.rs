@@ -5,6 +5,7 @@
 
 mod hyprland;
 mod sway;
+mod x11;
 
 use std::env;
 use std::fmt;
@@ -17,6 +18,7 @@ use serde::Serialize;
 pub use sway::SwaySource;
 use thiserror::Error;
 use tracing::info;
+pub use x11::X11Source;
 
 /// Backend-agnostic focus event.
 #[derive(Debug, Clone)]
@@ -155,7 +157,11 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = SwaySource::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Gnome | Backend::Kde | Backend::Niri | Backend::X11 => {
+        Backend::X11 => {
+            let source = X11Source::connect().await?;
+            Ok(Box::new(source))
+        }
+        Backend::Gnome | Backend::Kde | Backend::Niri => {
             Err(FocusError::BackendNotImplemented(resolved))
         }
         Backend::Auto => unreachable!("Auto should have been resolved"),
@@ -178,6 +184,7 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         }
         Backend::Hyprland => HyprlandSource::get_diagnostics(),
         Backend::Sway => SwaySource::get_diagnostics(),
+        Backend::X11 => X11Source::get_diagnostics(),
         other => vec![format!("Backend {other} is not yet implemented")],
     }
 }
