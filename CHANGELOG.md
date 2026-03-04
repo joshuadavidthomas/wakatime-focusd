@@ -28,6 +28,8 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
   - **X11** — generic fallback for any EWMH-compliant window manager (i3, bspwm, awesome, openbox, etc.)
 - **Automatic backend detection** — the daemon detects your desktop environment and picks the right backend. No configuration needed in most cases.
 - `--backend` CLI flag and `backend` config option for manual override (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
+- `wakatime-focusd init` command — generates a documented default config file at `~/.config/wakatime-focusd/config.toml` (with `--output` and `--force` options)
+- `--dump-config` flag — prints the resolved configuration (after CLI overrides) and exits, useful for debugging
 - Comprehensive integration test suite covering all backends, the full event pipeline, and reconnection behavior
 
 ## [0.1.3]

@@ -61,7 +61,15 @@ systemctl --user enable --now wakatime-focusd.service
 
 ## Configuration
 
-Create `~/.config/wakatime-focusd/config.toml`:
+Generate a default config file:
+
+```bash
+wakatime-focusd init
+```
+
+This writes a fully documented config to `~/.config/wakatime-focusd/config.toml`. To write to a different location, use `--output <path>`.
+
+The config file is optional — the daemon works out of the box with sensible defaults. Here's what you can customize:
 
 ```toml
 # Backend for focus detection (default: "auto")
@@ -151,18 +159,28 @@ systemctl --user stop wakatime-focusd
 ### CLI Options
 
 ```
-wakatime-focusd [OPTIONS]
+wakatime-focusd [OPTIONS] [COMMAND]
+
+Commands:
+  init                       Create a default config file with documentation
 
 Options:
-  -c, --config <PATH>       Path to TOML config file
-  -b, --backend <BACKEND>   Backend override [default: auto]
-                             [values: auto, hyprland, sway, gnome, kde, niri, x11]
-      --dry-run              Log commands instead of sending heartbeats
-      --log-level <LEVEL>    Log level [default: info]
-                             [values: trace, debug, info, warn, error]
-      --print-events         Print focus events to stdout
-      --oneshot              Capture N events then exit (for debugging)
-      --oneshot-count <N>    Number of events in oneshot mode [default: 5]
+  -c, --config <PATH>        Path to TOML config file
+  -b, --backend <BACKEND>    Backend override [default: auto]
+                              [values: auto, hyprland, sway, gnome, kde, niri, x11]
+      --dump-config           Print the resolved configuration and exit
+      --dry-run               Log commands instead of sending heartbeats
+      --log-level <LEVEL>     Log level [default: info]
+                              [values: trace, debug, info, warn, error]
+      --print-events          Print focus events to stdout
+      --oneshot               Capture N events then exit (for debugging)
+      --oneshot-count <N>     Number of events in oneshot mode [default: 5]
+```
+
+Use `--dump-config` to see the effective configuration after applying CLI overrides:
+
+```bash
+wakatime-focusd --backend sway --dry-run --dump-config
 ```
 
 ## Troubleshooting
