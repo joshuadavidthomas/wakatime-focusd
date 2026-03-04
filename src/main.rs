@@ -11,7 +11,6 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 use tracing_subscriber::EnvFilter;
-
 use wakatime_focusd::EventLoopOutcome;
 use wakatime_focusd::backend::Backend;
 use wakatime_focusd::backend::FocusSource;
@@ -175,8 +174,14 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
 
     loop {
         let source = wakatime_focusd::backend::connect(backend).await?;
-        let outcome =
-            wakatime_focusd::run_event_loop(source, &config, &wakatime_client, &idle_monitor, print_events).await;
+        let outcome = wakatime_focusd::run_event_loop(
+            source,
+            &config,
+            &wakatime_client,
+            &idle_monitor,
+            print_events,
+        )
+        .await;
 
         match outcome {
             EventLoopOutcome::SourceError(e) => {

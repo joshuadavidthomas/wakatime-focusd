@@ -7,7 +7,6 @@
 use std::time::Duration;
 
 use tokio::time::Instant;
-
 use tracing::debug;
 
 use crate::domain::Entity;

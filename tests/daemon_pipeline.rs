@@ -4,19 +4,22 @@
 //! `RecordingSender` to capture heartbeats, verifying the full pipeline:
 //! event → allowlist/denylist filter → heartbeat build → throttle dedup → idle gating → send.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
-
-use wakatime_focusd::backend::{FocusError, FocusEvent, FocusSource};
+use wakatime_focusd::EventLoopOutcome;
+use wakatime_focusd::backend::FocusError;
+use wakatime_focusd::backend::FocusEvent;
+use wakatime_focusd::backend::FocusSource;
 use wakatime_focusd::config::Config;
 use wakatime_focusd::domain::Heartbeat;
 use wakatime_focusd::idle::IdleMonitor;
+use wakatime_focusd::run_event_loop;
 use wakatime_focusd::wakatime::HeartbeatSender;
-use wakatime_focusd::{EventLoopOutcome, run_event_loop};
 
 /// A `FocusSource` that replays a scripted sequence of events.
 ///
@@ -95,11 +98,7 @@ impl HeartbeatSender for RecordingSender {
 }
 
 fn event(class: &str, title: Option<&str>) -> FocusEvent {
-    FocusEvent::new(
-        class.to_string(),
-        title.map(str::to_string),
-        None,
-    )
+    FocusEvent::new(class.to_string(), title.map(str::to_string), None)
 }
 
 /// Helper: run the event loop to completion with default config, returning sent heartbeats.
@@ -110,8 +109,7 @@ async fn run_pipeline(events: Vec<FocusEvent>, config: Config) -> Vec<SentRecord
     // Disable idle monitoring so it doesn't try to reach D-Bus
     idle_monitor.disable();
 
-    let outcome =
-        run_event_loop(Box::new(source), &config, &sender, &idle_monitor, false).await;
+    let outcome = run_event_loop(Box::new(source), &config, &sender, &idle_monitor, false).await;
 
     // Should always end with SourceError when mock is exhausted
     assert!(
@@ -144,9 +142,9 @@ async fn test_full_pipeline_basic_events() {
 async fn test_empty_events_skipped() {
     let events = vec![
         event("firefox", None),
-        event("", None),               // empty class
+        event("", None), // empty class
         event("code", Some("main.rs")),
-        event("", Some("ghost")),       // empty class with title
+        event("", Some("ghost")), // empty class with title
     ];
 
     let sent = run_pipeline(events, Config::default()).await;
@@ -166,7 +164,7 @@ async fn test_allowlist_filters_events() {
 
     let events = vec![
         event("firefox", None),
-        event("slack", None),   // not in allowlist
+        event("slack", None), // not in allowlist
         event("code", None),
         event("spotify", None), // not in allowlist
     ];
@@ -188,7 +186,7 @@ async fn test_denylist_filters_events() {
 
     let events = vec![
         event("firefox", None),
-        event("slack", None),   // denied
+        event("slack", None), // denied
         event("code", None),
         event("spotify", None), // denied
     ];
@@ -267,17 +265,20 @@ async fn test_same_entity_throttled() {
 // Test: idle suppression - events arrive while session is idle
 #[tokio::test]
 async fn test_idle_suppression() {
-    let source = MockFocusSource::from_events(vec![
-        event("firefox", None),
-        event("code", None),
-    ]);
+    let source = MockFocusSource::from_events(vec![event("firefox", None), event("code", None)]);
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
     // Mark as idle (don't start polling — just set the atomic directly)
     idle_monitor.set_idle(true);
 
-    let outcome =
-        run_event_loop(Box::new(source), &Config::default(), &sender, &idle_monitor, false).await;
+    let outcome = run_event_loop(
+        Box::new(source),
+        &Config::default(),
+        &sender,
+        &idle_monitor,
+        false,
+    )
+    .await;
     assert!(matches!(outcome, EventLoopOutcome::SourceError(_)));
 
     let sent = sent.lock().unwrap().clone();
@@ -296,7 +297,7 @@ async fn test_idle_transitions() {
 
     let idle_ref = Arc::clone(&idle_monitor);
     let config = Config {
-        min_entity_resend_seconds: 0, // no throttle
+        min_entity_resend_seconds: 0,     // no throttle
         heartbeat_interval_seconds: 3600, // disable periodic timer
         ..Config::default()
     };
@@ -350,7 +351,7 @@ async fn test_periodic_heartbeat_timer() {
     idle_monitor.disable(); // Don't use D-Bus
 
     let config = Config {
-        min_entity_resend_seconds: 2, // 2 second throttle
+        min_entity_resend_seconds: 2,  // 2 second throttle
         heartbeat_interval_seconds: 3, // periodic tick every 3 seconds
         ..Config::default()
     };
@@ -442,7 +443,11 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
 
     let sent = sent_arc.lock().unwrap().clone();
     // Only the initial heartbeat should have been sent
-    assert_eq!(sent.len(), 1, "periodic heartbeat should be suppressed when idle");
+    assert_eq!(
+        sent.len(),
+        1,
+        "periodic heartbeat should be suppressed when idle"
+    );
     assert_eq!(sent[0].entity, "firefox");
 }
 
@@ -493,8 +498,8 @@ async fn test_title_append_strategy() {
 
     let events = vec![
         event("firefox", Some("GitHub")),
-        event("code", None),           // no title
-        event("kitty", Some("")),      // empty title
+        event("code", None),      // no title
+        event("kitty", Some("")), // empty title
     ];
 
     let sent = run_pipeline(events, config).await;
@@ -516,9 +521,7 @@ async fn test_title_ignore_strategy() {
         ..Config::default()
     };
 
-    let events = vec![
-        event("firefox", Some("GitHub")),
-    ];
+    let events = vec![event("firefox", Some("GitHub"))];
 
     let sent = run_pipeline(events, config).await;
 
@@ -535,8 +538,14 @@ async fn test_source_error_returns_source_error_outcome() {
     let idle_monitor = IdleMonitor::new();
     idle_monitor.disable();
 
-    let outcome =
-        run_event_loop(Box::new(source), &Config::default(), &sender, &idle_monitor, false).await;
+    let outcome = run_event_loop(
+        Box::new(source),
+        &Config::default(),
+        &sender,
+        &idle_monitor,
+        false,
+    )
+    .await;
 
     assert!(matches!(outcome, EventLoopOutcome::SourceError(_)));
 }
