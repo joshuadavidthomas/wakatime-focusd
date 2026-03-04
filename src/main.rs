@@ -12,6 +12,7 @@ use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
 use clap::Subcommand;
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 use tracing::info;
@@ -183,7 +184,12 @@ async fn main() -> Result<()> {
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
     // Normal daemon mode
-    run_daemon(backend, config, args.print_events).await
+    let cli_overrides = CliOverrides {
+        config_path: args.config,
+        backend: args.backend,
+        dry_run: args.dry_run,
+    };
+    run_daemon(backend, config, cli_overrides, args.print_events).await
 }
 
 /// Load config and apply CLI overrides.
@@ -312,6 +318,13 @@ async fn run_oneshot_with_source(
     Ok(())
 }
 
+/// CLI overrides that need to be reapplied when config is reloaded.
+struct CliOverrides {
+    config_path: Option<PathBuf>,
+    backend: Backend,
+    dry_run: bool,
+}
+
 /// Install signal handlers and return a [`CancellationToken`] that is
 /// cancelled on `SIGINT` or `SIGTERM`.
 fn setup_shutdown_signal(shutdown: CancellationToken) {
@@ -344,24 +357,69 @@ fn setup_shutdown_signal(shutdown: CancellationToken) {
     });
 }
 
+/// Install a `SIGHUP` handler that notifies the reload signal.
+///
+/// Each `SIGHUP` wakes the event loop so it can reload the configuration
+/// file from disk and apply changes without a full restart.
+#[cfg(unix)]
+fn setup_reload_signal(reload: Arc<Notify>) {
+    use tokio::signal::unix::SignalKind;
+    use tokio::signal::unix::signal;
+
+    tokio::spawn(async move {
+        let mut sighup = signal(SignalKind::hangup()).expect("failed to register SIGHUP handler");
+        loop {
+            sighup.recv().await;
+            info!("Received SIGHUP, requesting config reload");
+            reload.notify_one();
+        }
+    });
+}
+
 /// Initial delay before retrying a failed backend connection.
 const RECONNECT_INITIAL_BACKOFF: Duration = Duration::from_millis(500);
 
 /// Maximum delay between backend reconnection attempts.
 const RECONNECT_MAX_BACKOFF: Duration = Duration::from_secs(30);
 
+/// Reload the configuration from disk, applying CLI overrides.
+fn reload_config(overrides: &CliOverrides) -> Result<Config> {
+    let mut config = Config::load_or_default(overrides.config_path.as_deref())
+        .context("Failed to reload configuration")?;
+
+    if overrides.backend != Backend::Auto {
+        config.backend = overrides.backend;
+    }
+    if overrides.dry_run {
+        config.dry_run = true;
+    }
+
+    Ok(config)
+}
+
 /// Run daemon event loop.
-async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Result<()> {
-    let wakatime_client =
+async fn run_daemon(
+    backend: Backend,
+    initial_config: Config,
+    cli_overrides: CliOverrides,
+    print_events: bool,
+) -> Result<()> {
+    let mut config = initial_config;
+    let mut wakatime_client =
         WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
 
-    let idle_monitor = Arc::new(IdleMonitor::new());
     let shutdown = CancellationToken::new();
     setup_shutdown_signal(shutdown.clone());
 
+    let reload_signal = Arc::new(Notify::new());
+    #[cfg(unix)]
+    setup_reload_signal(Arc::clone(&reload_signal));
+
+    let mut idle_monitor = Arc::new(IdleMonitor::new());
+    let mut idle_shutdown = CancellationToken::new();
     idle_monitor.clone().start_polling(
         Duration::from_secs(config.idle_check_interval_seconds),
-        shutdown.clone(),
+        idle_shutdown.clone(),
     );
 
     info!("Daemon started, waiting for focus events...");
@@ -391,6 +449,7 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
             &wakatime_client,
             &idle_monitor,
             &shutdown,
+            &reload_signal,
             print_events,
         )
         .await;
@@ -401,7 +460,50 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
                 tokio::time::sleep(backoff).await;
                 backoff = (backoff * 2).min(RECONNECT_MAX_BACKOFF);
             }
+            EventLoopOutcome::Reload => {
+                info!("Reloading configuration...");
+                match reload_config(&cli_overrides) {
+                    Ok(new_config) => {
+                        if new_config.backend != config.backend {
+                            warn!(
+                                "Backend change ({} -> {}) requires a restart and will be ignored",
+                                config.backend, new_config.backend,
+                            );
+                        }
+
+                        match WakaTimeClient::from_config(&new_config) {
+                            Ok(client) => wakatime_client = client,
+                            Err(e) => {
+                                error!(
+                                    "Failed to initialize WakaTime client after reload: {e}. \
+                                     Keeping current configuration."
+                                );
+                                continue;
+                            }
+                        }
+
+                        // Restart idle polling with potentially new interval
+                        idle_shutdown.cancel();
+                        idle_monitor = Arc::new(IdleMonitor::new());
+                        idle_shutdown = CancellationToken::new();
+                        idle_monitor.clone().start_polling(
+                            Duration::from_secs(new_config.idle_check_interval_seconds),
+                            idle_shutdown.clone(),
+                        );
+
+                        config = new_config;
+                        backoff = RECONNECT_INITIAL_BACKOFF;
+                        info!("Configuration reloaded successfully");
+                    }
+                    Err(e) => {
+                        error!(
+                            "Failed to reload configuration: {e}. Keeping current configuration."
+                        );
+                    }
+                }
+            }
             EventLoopOutcome::Finished | EventLoopOutcome::Shutdown => {
+                idle_shutdown.cancel();
                 info!("Daemon shutting down");
                 return Ok(());
             }

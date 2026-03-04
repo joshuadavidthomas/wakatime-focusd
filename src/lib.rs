@@ -13,6 +13,7 @@ pub mod wakatime;
 
 use std::time::Duration;
 
+use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::info;
@@ -33,6 +34,8 @@ pub enum EventLoopOutcome {
     Finished,
     /// Shutdown was requested via the cancellation token.
     Shutdown,
+    /// A configuration reload was requested (e.g., via `SIGHUP`).
+    Reload,
 }
 
 /// Core event loop, decoupled from backend connection for testability.
@@ -46,6 +49,7 @@ pub async fn run_event_loop(
     sender: &(dyn wakatime::HeartbeatSender + Sync),
     idle_monitor: &IdleMonitor,
     shutdown: &CancellationToken,
+    reload: &Notify,
     print_events: bool,
 ) -> EventLoopOutcome {
     let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
@@ -59,6 +63,11 @@ pub async fn run_event_loop(
             () = shutdown.cancelled() => {
                 info!("Shutdown signal received, exiting event loop");
                 return EventLoopOutcome::Shutdown;
+            }
+
+            () = reload.notified() => {
+                info!("Reload signal received, exiting event loop for config reload");
+                return EventLoopOutcome::Reload;
             }
 
             event = source.next_event() => {
