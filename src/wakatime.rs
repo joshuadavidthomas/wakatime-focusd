@@ -21,16 +21,15 @@ use tracing::warn;
 use crate::config::Config;
 use crate::domain::Heartbeat;
 
+/// Log every Nth error after an initial burst of 5.
+const ERROR_LOG_RATE_LIMIT: u32 = 10;
+
 /// Trait for sending heartbeats to `WakaTime`.
 #[async_trait]
 pub trait HeartbeatSender: Send {
     /// Send a heartbeat. Returns Ok(()) on success.
     async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()>;
 }
-
-/// Rate limiter for error logging.
-static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
-const ERROR_LOG_RATE_LIMIT: u32 = 10; // Log every Nth error after initial burst
 
 /// `WakaTime` CLI client.
 #[derive(Debug)]
@@ -43,6 +42,9 @@ pub struct WakaTimeClient {
 
     /// Dry run mode.
     dry_run: bool,
+
+    /// Per-instance error log counter for rate limiting.
+    error_log_count: AtomicU32,
 }
 
 impl WakaTimeClient {
@@ -55,6 +57,7 @@ impl WakaTimeClient {
             cli_path,
             config_path: config.wakatime_config_path.clone(),
             dry_run: config.dry_run,
+            error_log_count: AtomicU32::new(0),
         })
     }
 
@@ -115,7 +118,7 @@ impl WakaTimeClient {
             let stderr = String::from_utf8_lossy(&result.stderr);
 
             // Rate-limit error logging
-            let count = ERROR_LOG_COUNT.fetch_add(1, Ordering::Relaxed);
+            let count = self.error_log_count.fetch_add(1, Ordering::Relaxed);
             if count <= 5 || count.is_multiple_of(ERROR_LOG_RATE_LIMIT) {
                 error!(
                     "wakatime-cli failed (exit code {:?}): {}",
