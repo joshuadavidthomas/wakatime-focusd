@@ -12,9 +12,7 @@ use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tokio::net::UnixListener;
 use wakatime_focusd::backend::Backend;
-use wakatime_focusd::backend::{
-    self,
-};
+use wakatime_focusd::backend::{self};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 

@@ -11,9 +11,7 @@ use std::time::Duration;
 
 use serial_test::serial;
 use wakatime_focusd::backend::Backend;
-use wakatime_focusd::backend::{
-    self,
-};
+use wakatime_focusd::backend::{self};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::AtomEnum;
 use x11rb::protocol::xproto::ConnectionExt;

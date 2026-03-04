@@ -14,9 +14,7 @@ use serial_test::serial;
 use tokio::sync::Mutex;
 use wakatime_focusd::backend::Backend;
 use wakatime_focusd::backend::FocusError;
-use wakatime_focusd::backend::{
-    self,
-};
+use wakatime_focusd::backend::{self};
 use zbus::Connection;
 use zbus::connection::Builder;
 use zbus::object_server::InterfaceRef;

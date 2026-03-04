@@ -1,5 +1,6 @@
 //! wakatime-focusd binary entry point.
 
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,6 +8,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
+use clap::Subcommand;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
@@ -24,7 +26,11 @@ use wakatime_focusd::wakatime::WakaTimeClient;
 #[derive(Parser, Debug)]
 #[command(name = "wakatime-focusd")]
 #[command(author, version, about, long_about = None)]
+#[allow(clippy::struct_excessive_bools)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to config file.
     #[arg(short, long)]
     config: Option<PathBuf>,
@@ -32,6 +38,10 @@ struct Args {
     /// Backend to use for focus detection.
     #[arg(short, long, default_value = "auto")]
     backend: Backend,
+
+    /// Print the resolved configuration and exit.
+    #[arg(long)]
+    dump_config: bool,
 
     /// Enable dry-run mode (don't actually send heartbeats).
     #[arg(long)]
@@ -54,16 +64,57 @@ struct Args {
     oneshot_count: usize,
 }
 
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Create a default config file with documentation.
+    Init {
+        /// Write to this path instead of the default location.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Overwrite an existing config file.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+/// Return the default config file path.
+fn default_config_path() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir().context("Could not determine config directory")?;
+    Ok(config_dir.join("wakatime-focusd").join("config.toml"))
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Initialize logging
-    init_logging(&args.log_level)?;
+    // Handle `init` subcommand before logging — it doesn't need the daemon.
+    if let Some(Command::Init { output, force }) = &args.command {
+        let path = match output {
+            Some(p) => p.clone(),
+            None => default_config_path()?,
+        };
 
-    info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
+        if path.exists() && !force {
+            anyhow::bail!(
+                "Config file already exists at {}\nUse --force to overwrite.",
+                path.display()
+            );
+        }
 
-    // Load config
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory {}", parent.display()))?;
+        }
+
+        fs::write(&path, Config::template())
+            .with_context(|| format!("Failed to write config to {}", path.display()))?;
+
+        println!("Config written to {}", path.display());
+        return Ok(());
+    }
+
+    // Load config (before logging so --dump-config stays clean)
     let mut config =
         Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
 
@@ -75,6 +126,17 @@ async fn main() -> Result<()> {
     if args.backend != Backend::Auto {
         config.backend = args.backend;
     }
+
+    // Handle --dump-config before logging setup
+    if args.dump_config {
+        println!("{}", config.dump()?);
+        return Ok(());
+    }
+
+    // Initialize logging
+    init_logging(&args.log_level)?;
+
+    info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
     // Resolve the backend (auto-detect if needed)
     let backend = config

@@ -15,9 +15,7 @@ use tokio::net::UnixListener;
 use tokio::net::UnixStream;
 use wakatime_focusd::backend::Backend;
 use wakatime_focusd::backend::FocusError;
-use wakatime_focusd::backend::{
-    self,
-};
+use wakatime_focusd::backend::{self};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
