@@ -1,5 +1,7 @@
 //! Domain types for `WakaTime` heartbeats.
 
+use std::fmt;
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -55,6 +57,12 @@ impl Category {
     }
 }
 
+impl fmt::Display for Category {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Entity sent to `WakaTime` (newtype for type safety).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Entity(String);
@@ -69,6 +77,12 @@ impl Entity {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl fmt::Display for Entity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
     }
 }
 
