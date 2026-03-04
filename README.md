@@ -158,22 +158,204 @@ systemctl --user stop wakatime-focusd
 
 ### CLI Options
 
+<!-- [[[cog
+import subprocess
+import cog
+
+commands = [
+    ([], "wakatime-focusd --help"),
+    (["config"], "wakatime-focusd config --help"),
+    (["config", "init"], "wakatime-focusd config init --help"),
+    (["config", "dump"], "wakatime-focusd config dump --help"),
+    (["oneshot"], "wakatime-focusd oneshot --help"),
+]
+
+for i, (args, label) in enumerate(commands):
+    result = subprocess.run(
+        ["cargo", "run", "-q", "--"] + args + ["--help"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    output = result.stdout.decode("utf-8").rstrip()
+    cog.outl(f"```\n$ {label}\n{output}\n```")
+    if i < len(commands) - 1:
+        cog.outl()
+]]] -->
 ```
-wakatime-focusd [OPTIONS] [COMMAND]
+$ wakatime-focusd --help
+Systemd user daemon for WakaTime app heartbeats
+
+Usage: wakatime-focusd [OPTIONS] [COMMAND]
 
 Commands:
-  config                     Manage configuration (init, dump)
-  oneshot                    Capture a few focus events and exit (for debugging)
+  config   Manage configuration
+  oneshot  Capture a few focus events and exit (for debugging)
+  help     Print this message or the help of the given subcommand(s)
 
 Options:
-  -c, --config <PATH>        Path to TOML config file
-  -b, --backend <BACKEND>    Backend override [default: auto]
-                              [values: auto, hyprland, sway, gnome, kde, niri, x11]
-      --dry-run               Log commands instead of sending heartbeats
-      --log-level <LEVEL>     Log level [default: info]
-                              [values: trace, debug, info, warn, error]
-      --print-events          Print focus events to stdout
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+      --dry-run
+          Enable dry-run mode (don't actually send heartbeats)
+
+      --log-level <LOG_LEVEL>
+          Log level (trace, debug, info, warn, error)
+          
+          [default: info]
+
+      --print-events
+          Print normalized focus events to stdout
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
+
+```
+$ wakatime-focusd config --help
+Manage configuration
+
+Usage: wakatime-focusd config [OPTIONS] <COMMAND>
+
+Commands:
+  init  Create a default config file with documentation
+  dump  Print the resolved configuration and exit
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```
+$ wakatime-focusd config init --help
+Create a default config file with documentation
+
+Usage: wakatime-focusd config init [OPTIONS]
+
+Options:
+  -o, --output <OUTPUT>
+          Write to this path instead of the default location
+
+      --force
+          Overwrite an existing config file
+
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```
+$ wakatime-focusd config dump --help
+Print the resolved configuration and exit
+
+Usage: wakatime-focusd config dump [OPTIONS]
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```
+$ wakatime-focusd oneshot --help
+Capture a few focus events and exit (for debugging)
+
+Usage: wakatime-focusd oneshot [OPTIONS]
+
+Options:
+  -n, --count <COUNT>
+          Number of events to capture
+          
+          [default: 5]
+
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+<!-- [[[end]]] -->
 
 Use `config dump` to see the effective configuration after applying CLI overrides:
 

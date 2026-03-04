@@ -15,5 +15,8 @@ clean:
 clippy *ARGS:
     cargo clippy --all-targets --all-features --benches --fix {{ ARGS }} -- -D warnings
 
+cog:
+    uvx --from cogapp cog -r README.md
+
 fmt *ARGS:
     cargo +nightly fmt {{ ARGS }}
