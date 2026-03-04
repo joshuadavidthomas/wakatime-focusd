@@ -43,10 +43,20 @@ cp target/release/wakatime-focusd ~/.local/bin/
 ### Installing the systemd service
 
 ```bash
-mkdir -p ~/.config/systemd/user
-cp contrib/wakatime-focusd.service ~/.config/systemd/user/
-systemctl --user daemon-reload
+wakatime-focusd service install --now
+```
+
+This generates a service unit file pointing to the binary, writes it to `~/.config/systemd/user/`, reloads systemd, and enables/starts the service. Omit `--now` to install the file without starting:
+
+```bash
+wakatime-focusd service install
 systemctl --user enable --now wakatime-focusd.service
+```
+
+To uninstall the service:
+
+```bash
+wakatime-focusd service uninstall
 ```
 
 > **Important:** Your desktop environment's variables must be visible to systemd user services. Most Wayland compositors and display managers handle this, but if the service can't detect your backend, add this to your compositor's startup:
@@ -167,6 +177,10 @@ commands = [
     (["config"], "wakatime-focusd config --help"),
     (["config", "init"], "wakatime-focusd config init --help"),
     (["config", "dump"], "wakatime-focusd config dump --help"),
+    (["service"], "wakatime-focusd service --help"),
+    (["service", "install"], "wakatime-focusd service install --help"),
+    (["service", "uninstall"], "wakatime-focusd service uninstall --help"),
+    (["service", "status"], "wakatime-focusd service status --help"),
     (["oneshot"], "wakatime-focusd oneshot --help"),
 ]
 
@@ -189,6 +203,7 @@ Usage: wakatime-focusd [OPTIONS] [COMMAND]
 
 Commands:
   config   Manage configuration
+  service  Manage the systemd user service
   oneshot  Capture a few focus events and exit (for debugging)
   help     Print this message or the help of the given subcommand(s)
 
@@ -300,6 +315,134 @@ $ wakatime-focusd config dump --help
 Print the resolved configuration and exit
 
 Usage: wakatime-focusd config dump [OPTIONS]
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```bash
+$ wakatime-focusd service --help
+Manage the systemd user service
+
+Usage: wakatime-focusd service [OPTIONS] <COMMAND>
+
+Commands:
+  install    Install the systemd user service
+  uninstall  Uninstall the systemd user service
+  status     Show the service status
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```bash
+$ wakatime-focusd service install --help
+Install the systemd user service.
+
+Generates a service unit file pointing to the current binary and writes it to ~/.config/systemd/user/. Runs `systemctl --user daemon-reload` after installation.
+
+Usage: wakatime-focusd service install [OPTIONS]
+
+Options:
+      --now
+          Enable and start the service immediately after installing
+
+      --force
+          Overwrite an existing service file
+
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```bash
+$ wakatime-focusd service uninstall --help
+Uninstall the systemd user service.
+
+Stops and disables the service, removes the unit file, and runs `systemctl --user daemon-reload`.
+
+Usage: wakatime-focusd service uninstall [OPTIONS]
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:     Auto-detect the running desktop environment
+          - hyprland: Hyprland compositor
+          - sway:     Sway compositor (i3-compatible IPC)
+          - gnome:    GNOME Shell (Mutter)
+          - kde:      KDE Plasma (`KWin`)
+          - niri:     Niri compositor
+          - x11:      Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```bash
+$ wakatime-focusd service status --help
+Show the service status
+
+Usage: wakatime-focusd service status [OPTIONS]
 
 Options:
   -c, --config <CONFIG>

@@ -1,5 +1,7 @@
 //! wakatime-focusd binary entry point.
 
+mod service;
+
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -60,6 +62,12 @@ enum Command {
         action: ConfigAction,
     },
 
+    /// Manage the systemd user service.
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+
     /// Capture a few focus events and exit (for debugging).
     Oneshot {
         /// Number of events to capture.
@@ -85,6 +93,33 @@ enum ConfigAction {
     Dump,
 }
 
+#[derive(Subcommand, Debug)]
+enum ServiceAction {
+    /// Install the systemd user service.
+    ///
+    /// Generates a service unit file pointing to the current binary and writes
+    /// it to ~/.config/systemd/user/. Runs `systemctl --user daemon-reload`
+    /// after installation.
+    Install {
+        /// Enable and start the service immediately after installing.
+        #[arg(long)]
+        now: bool,
+
+        /// Overwrite an existing service file.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Uninstall the systemd user service.
+    ///
+    /// Stops and disables the service, removes the unit file, and runs
+    /// `systemctl --user daemon-reload`.
+    Uninstall,
+
+    /// Show the service status.
+    Status,
+}
+
 /// Return the default config file path.
 fn default_config_path() -> Result<PathBuf> {
     let config_dir = dirs::config_dir().context("Could not determine config directory")?;
@@ -103,6 +138,16 @@ async fn main() -> Result<()> {
                     return cmd_init(output.as_deref(), *force);
                 }
                 ConfigAction::Dump => return cmd_dump_config(&args),
+            },
+            Command::Service { action } => match action {
+                ServiceAction::Install { now, force } => {
+                    return service::install(*now, *force);
+                }
+                ServiceAction::Uninstall => return service::uninstall(),
+                ServiceAction::Status => {
+                    service::status();
+                    return Ok(());
+                }
             },
             Command::Oneshot { count } => return cmd_oneshot(&args, *count).await,
         }
