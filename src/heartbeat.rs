@@ -53,6 +53,7 @@ impl HeartbeatBuilder {
     }
 
     /// Check if an app class is allowed based on allowlist/denylist.
+    #[must_use]
     pub fn is_app_allowed(&self, app_class: &str) -> bool {
         // Denylist takes precedence
         if let Some(ref denylist) = self.app_denylist
@@ -71,6 +72,7 @@ impl HeartbeatBuilder {
     }
 
     /// Construct a Heartbeat from a `FocusEvent`.
+    #[must_use]
     pub fn build(&self, event: FocusEvent) -> Heartbeat {
         let category = self.match_category(&event.app_class);
         let entity = self.build_entity(&event);

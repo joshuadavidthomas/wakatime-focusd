@@ -40,6 +40,7 @@ pub struct IdleMonitor {
 
 impl IdleMonitor {
     /// Create a new idle monitor.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             idle_hint: AtomicBool::new(false),
@@ -101,6 +102,13 @@ impl IdleMonitor {
     pub fn disable(&self) {
         warn!("Disabling idle monitoring");
         self.enabled.store(false, Ordering::Relaxed);
+    }
+
+    /// Directly set the idle hint value.
+    ///
+    /// Useful for testing without a real D-Bus connection.
+    pub fn set_idle(&self, idle: bool) {
+        self.idle_hint.store(idle, Ordering::Relaxed);
     }
 
     /// Start background polling task.

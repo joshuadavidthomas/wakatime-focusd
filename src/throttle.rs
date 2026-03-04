@@ -5,8 +5,8 @@
 //! - Send again if >= `min_resend_seconds` since last send for same entity
 
 use std::time::Duration;
-use std::time::Instant;
 
+use tokio::time::Instant;
 use tracing::debug;
 
 use crate::domain::Entity;
@@ -42,6 +42,7 @@ struct SentHeartbeat {
 
 impl HeartbeatThrottle {
     /// Create a new throttle with the given minimum resend interval.
+    #[must_use]
     pub fn new(min_resend_seconds: u64) -> Self {
         Self {
             last_sent: None,
@@ -106,6 +107,7 @@ impl HeartbeatThrottle {
     }
 
     /// Get the last sent heartbeat, if any.
+    #[must_use]
     pub fn last_heartbeat(&self) -> Option<&Heartbeat> {
         self.last_sent.as_ref().map(|s| &s.heartbeat)
     }
@@ -113,8 +115,6 @@ impl HeartbeatThrottle {
 
 #[cfg(test)]
 mod tests {
-    use std::thread::sleep;
-
     use super::*;
     use crate::backend::FocusEvent;
     use crate::domain::Category;
@@ -128,8 +128,8 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_first_heartbeat_always_sends() {
+    #[tokio::test]
+    async fn test_first_heartbeat_always_sends() {
         let throttle = HeartbeatThrottle::new(120);
         let heartbeat = test_heartbeat("firefox");
         assert_eq!(
@@ -138,8 +138,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_different_entity_sends() {
+    #[tokio::test]
+    async fn test_different_entity_sends() {
         let mut throttle = HeartbeatThrottle::new(120);
 
         // First heartbeat
@@ -155,8 +155,8 @@ mod tests {
         assert_eq!(throttle.should_send(&code.entity), ThrottleDecision::Send);
     }
 
-    #[test]
-    fn test_same_entity_throttled() {
+    #[tokio::test]
+    async fn test_same_entity_throttled() {
         let mut throttle = HeartbeatThrottle::new(120);
         let firefox = test_heartbeat("firefox");
 
@@ -174,10 +174,11 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_same_entity_after_timeout() {
-        // Use a very short timeout for testing
-        let mut throttle = HeartbeatThrottle::new(0);
+    #[tokio::test]
+    async fn test_same_entity_after_timeout() {
+        tokio::time::pause();
+
+        let mut throttle = HeartbeatThrottle::new(1);
         let firefox = test_heartbeat("firefox");
 
         assert_eq!(
@@ -186,8 +187,9 @@ mod tests {
         );
         throttle.record_sent(firefox);
 
-        // With 0 second threshold, should send immediately
-        sleep(Duration::from_millis(10));
+        // Advance past the 1-second threshold
+        tokio::time::advance(Duration::from_secs(2)).await;
+
         let another_firefox = test_heartbeat("firefox");
         assert_eq!(
             throttle.should_send(&another_firefox.entity),
@@ -195,8 +197,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_entity_change_sequence() {
+    #[tokio::test]
+    async fn test_entity_change_sequence() {
         let mut throttle = HeartbeatThrottle::new(120);
 
         // firefox -> code -> firefox
@@ -219,8 +221,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_last_heartbeat() {
+    #[tokio::test]
+    async fn test_last_heartbeat() {
         let mut throttle = HeartbeatThrottle::new(120);
         assert!(throttle.last_heartbeat().is_none());
 

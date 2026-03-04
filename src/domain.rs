@@ -32,6 +32,7 @@ pub enum Category {
 
 impl Category {
     /// Get the category as a string for `WakaTime` API.
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Coding => "coding",
@@ -65,6 +66,7 @@ impl Entity {
     }
 
     /// Get the entity as a string.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
     }
@@ -85,6 +87,7 @@ pub struct Heartbeat {
 
 impl Heartbeat {
     /// Create a new heartbeat.
+    #[must_use]
     pub fn new(entity: Entity, category: Category, source: FocusEvent) -> Self {
         Self {
             entity,
