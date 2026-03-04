@@ -41,7 +41,7 @@ pub struct FocusEvent {
 
 impl FocusEvent {
     /// Create a new focus event.
-    #[must_use] 
+    #[must_use]
     pub fn new(app_class: String, title: Option<String>, window_id: Option<String>) -> Self {
         Self {
             app_class,
@@ -51,7 +51,7 @@ impl FocusEvent {
     }
 
     /// Returns true if this represents an empty/no-focus state.
-    #[must_use] 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.app_class.is_empty()
     }
@@ -186,7 +186,7 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
 }
 
 /// Get diagnostic information for the given backend.
-#[must_use] 
+#[must_use]
 pub fn diagnostics(backend: Backend) -> Vec<String> {
     match backend {
         Backend::Auto => {

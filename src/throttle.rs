@@ -42,7 +42,7 @@ struct SentHeartbeat {
 
 impl HeartbeatThrottle {
     /// Create a new throttle with the given minimum resend interval.
-    #[must_use] 
+    #[must_use]
     pub fn new(min_resend_seconds: u64) -> Self {
         Self {
             last_sent: None,
@@ -107,7 +107,7 @@ impl HeartbeatThrottle {
     }
 
     /// Get the last sent heartbeat, if any.
-    #[must_use] 
+    #[must_use]
     pub fn last_heartbeat(&self) -> Option<&Heartbeat> {
         self.last_sent.as_ref().map(|s| &s.heartbeat)
     }
