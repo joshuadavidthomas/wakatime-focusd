@@ -13,9 +13,10 @@ wakatime-focusd auto-detects your desktop environment. No manual configuration i
 | **Niri** | JSON IPC socket events |
 | **GNOME Shell** | D-Bus (`org.gnome.Shell.Introspect`) |
 | **KDE Plasma** | KWin script + D-Bus |
+| **Wayland** (wlr-foreign-toplevel) | `wlr-foreign-toplevel-management` protocol — works with River, Wayfire, labwc, dwl, etc. |
 | **X11** (any WM) | `_NET_ACTIVE_WINDOW` — works with i3, bspwm, awesome, openbox, etc. |
 
-Auto-detection checks Wayland-native compositors first, then falls back to X11.
+Auto-detection checks Wayland-native compositors first, then falls back to the generic `wlr-foreign-toplevel` protocol for other Wayland compositors, and finally to X11.
 
 ## How It Works
 
@@ -99,7 +100,7 @@ cog.outl(f"```toml\n{output}\n```")
 # Location: ~/.config/wakatime-focusd/config.toml
 
 # Backend for focus detection (default: "auto")
-# Options: auto, hyprland, sway, gnome, kde, niri, x11
+# Options: auto, hyprland, sway, gnome, kde, niri, wlr-foreign-toplevel, x11
 # "auto" detects your desktop environment automatically.
 # backend = "auto"
 
@@ -233,13 +234,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -280,13 +282,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -314,13 +317,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -342,13 +346,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -376,13 +381,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -412,13 +418,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -442,13 +449,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -470,13 +478,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 
@@ -503,13 +512,14 @@ Options:
           Backend to use for focus detection
 
           Possible values:
-          - auto:     Auto-detect the running desktop environment
-          - hyprland: Hyprland compositor
-          - sway:     Sway compositor (i3-compatible IPC)
-          - gnome:    GNOME Shell (Mutter)
-          - kde:      KDE Plasma (`KWin`)
-          - niri:     Niri compositor
-          - x11:      Generic X11 (fallback for any X11 window manager)
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
           
           [default: auto]
 

@@ -8,6 +8,7 @@ mod hyprland;
 mod kde;
 mod niri;
 mod sway;
+mod wlr_foreign_toplevel;
 mod x11;
 
 use std::env;
@@ -24,6 +25,7 @@ use serde::Serialize;
 use sway::SwaySource;
 use thiserror::Error;
 use tracing::info;
+use wlr_foreign_toplevel::WlrForeignToplevelSource;
 use x11::X11Source;
 
 /// Backend-agnostic focus event.
@@ -84,6 +86,10 @@ pub enum Backend {
     Kde,
     /// Niri compositor.
     Niri,
+    /// Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.).
+    #[serde(rename = "wlr-foreign-toplevel")]
+    #[value(name = "wlr-foreign-toplevel")]
+    WlrForeignToplevel,
     /// Generic X11 (fallback for any X11 window manager).
     X11,
 }
@@ -97,6 +103,7 @@ impl fmt::Display for Backend {
             Self::Gnome => write!(f, "gnome"),
             Self::Kde => write!(f, "kde"),
             Self::Niri => write!(f, "niri"),
+            Self::WlrForeignToplevel => write!(f, "wlr-foreign-toplevel"),
             Self::X11 => write!(f, "x11"),
         }
     }
@@ -133,6 +140,11 @@ impl Backend {
                 info!("Detected GNOME environment (XDG_CURRENT_DESKTOP={desktop})");
                 return Ok(Self::Gnome);
             }
+        }
+
+        if env::var("WAYLAND_DISPLAY").is_ok() {
+            info!("Detected Wayland session, trying wlr-foreign-toplevel protocol");
+            return Ok(Self::WlrForeignToplevel);
         }
 
         if env::var("DISPLAY").is_ok() {
@@ -181,6 +193,10 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = NiriSource::connect().await?;
             Ok(Box::new(source))
         }
+        Backend::WlrForeignToplevel => {
+            let source = WlrForeignToplevelSource::connect().await?;
+            Ok(Box::new(source))
+        }
         Backend::Auto => unreachable!("Auto should have been resolved"),
     }
 }
@@ -205,6 +221,7 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         Backend::Gnome => GnomeSource::get_diagnostics(),
         Backend::Kde => KdeSource::get_diagnostics(),
         Backend::Niri => NiriSource::get_diagnostics(),
+        Backend::WlrForeignToplevel => WlrForeignToplevelSource::get_diagnostics(),
         Backend::X11 => X11Source::get_diagnostics(),
     }
 }
