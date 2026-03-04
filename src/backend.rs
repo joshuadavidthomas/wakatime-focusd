@@ -15,9 +15,9 @@ mod x11;
 use std::env;
 use std::fmt;
 
-use async_trait::async_trait;
 use clap::ValueEnum;
 use cosmic::CosmicSource;
+use futures_util::future::BoxFuture;
 use gnome::GnomeSource;
 use hyprland::HyprlandSource;
 use kde::KdeSource;
@@ -62,13 +62,12 @@ impl FocusEvent {
 }
 
 /// Trait for focus event sources.
-#[async_trait]
 pub trait FocusSource: Send {
     /// Get the next focus event.
     ///
     /// This method blocks until a focus event occurs or an error happens.
     /// Implementations should handle reconnection internally.
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError>;
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>>;
 }
 
 /// Available backend types.

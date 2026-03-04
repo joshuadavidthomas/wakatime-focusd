@@ -7,7 +7,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::sync::mpsc;
 use tracing::debug;
 use tracing::info;
@@ -192,26 +192,27 @@ impl Drop for KdeSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for KdeSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        loop {
-            let event = self.rx.recv().await.ok_or_else(|| {
-                FocusError::ConnectionFailed("KWin callback channel closed".to_string())
-            })?;
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            loop {
+                let event = self.rx.recv().await.ok_or_else(|| {
+                    FocusError::ConnectionFailed("KWin callback channel closed".to_string())
+                })?;
 
-            // Skip empty focus events
-            if event.is_empty() {
-                continue;
+                // Skip empty focus events
+                if event.is_empty() {
+                    continue;
+                }
+
+                debug!(
+                    "Focus changed: class={}, title={:?}, window_id={:?}",
+                    event.app_class, event.title, event.window_id
+                );
+
+                return Ok(event);
             }
-
-            debug!(
-                "Focus changed: class={}, title={:?}, window_id={:?}",
-                event.app_class, event.title, event.window_id
-            );
-
-            return Ok(event);
-        }
+        })
     }
 }
 

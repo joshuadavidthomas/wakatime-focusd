@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::env;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tracing::debug;
 use tracing::info;
 use tracing::trace;
@@ -95,56 +95,57 @@ impl GnomeSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for GnomeSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        // Get initial focus
-        if let Some(event) = self.get_focused_window().await?
-            && self.last_focused_class.as_deref() != Some(&event.app_class)
-        {
-            self.last_focused_class = Some(event.app_class.clone());
-            debug!(
-                "Initial focus: class={}, title={:?}",
-                event.app_class, event.title
-            );
-            return Ok(event);
-        }
-
-        // Listen for WindowsChanged signals
-        let mut stream = self
-            .proxy
-            .receive_windows_changed()
-            .await
-            .map_err(|e| FocusError::ConnectionFailed(format!("Signal subscribe: {e}")))?;
-
-        loop {
-            use futures_util::StreamExt;
-            let signal = stream.next().await;
-
-            if signal.is_none() {
-                return Err(FocusError::ConnectionFailed(
-                    "WindowsChanged signal stream ended".to_string(),
-                ));
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            // Get initial focus
+            if let Some(event) = self.get_focused_window().await?
+                && self.last_focused_class.as_deref() != Some(&event.app_class)
+            {
+                self.last_focused_class = Some(event.app_class.clone());
+                debug!(
+                    "Initial focus: class={}, title={:?}",
+                    event.app_class, event.title
+                );
+                return Ok(event);
             }
 
-            trace!("WindowsChanged signal received");
+            // Listen for WindowsChanged signals
+            let mut stream = self
+                .proxy
+                .receive_windows_changed()
+                .await
+                .map_err(|e| FocusError::ConnectionFailed(format!("Signal subscribe: {e}")))?;
 
-            if let Some(event) = self.get_focused_window().await? {
-                // Only emit if focus actually changed
-                if self.last_focused_class.as_deref() != Some(&event.app_class) {
-                    self.last_focused_class = Some(event.app_class.clone());
-                    debug!(
-                        "Focus changed: class={}, title={:?}, window_id={:?}",
-                        event.app_class, event.title, event.window_id
-                    );
-                    return Ok(event);
+            loop {
+                use futures_util::StreamExt;
+                let signal = stream.next().await;
+
+                if signal.is_none() {
+                    return Err(FocusError::ConnectionFailed(
+                        "WindowsChanged signal stream ended".to_string(),
+                    ));
                 }
-            } else if self.last_focused_class.is_some() {
-                // Focus went to nothing (e.g., desktop)
-                self.last_focused_class = None;
-                trace!("Focus cleared (no focused window)");
+
+                trace!("WindowsChanged signal received");
+
+                if let Some(event) = self.get_focused_window().await? {
+                    // Only emit if focus actually changed
+                    if self.last_focused_class.as_deref() != Some(&event.app_class) {
+                        self.last_focused_class = Some(event.app_class.clone());
+                        debug!(
+                            "Focus changed: class={}, title={:?}, window_id={:?}",
+                            event.app_class, event.title, event.window_id
+                        );
+                        return Ok(event);
+                    }
+                } else if self.last_focused_class.is_some() {
+                    // Focus went to nothing (e.g., desktop)
+                    self.last_focused_class = None;
+                    trace!("Focus cleared (no focused window)");
+                }
             }
-        }
+        })
     }
 }
 

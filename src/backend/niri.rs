@@ -9,7 +9,7 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use serde::Deserialize;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
@@ -103,44 +103,45 @@ impl NiriSource {
     }
 }
 
-#[async_trait]
 impl FocusSource for NiriSource {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        loop {
-            if self.reader.is_none() {
-                self.reconnect().await?;
-            }
-
-            let Some(reader) = &mut self.reader else {
-                continue;
-            };
-
-            let mut line = String::new();
-            match reader.read_line(&mut line).await {
-                Ok(0) => {
-                    warn!("Niri IPC stream ended (EOF)");
-                    self.reader = None;
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            loop {
+                if self.reader.is_none() {
+                    self.reconnect().await?;
                 }
-                Ok(_) => {
-                    trace!("Niri event: {}", line.trim());
 
-                    match serde_json::from_str::<NiriEvent>(line.trim()) {
-                        Ok(event) => {
-                            if let Some(focus_event) = self.handle_event(event) {
-                                return Ok(focus_event);
+                let Some(reader) = &mut self.reader else {
+                    continue;
+                };
+
+                let mut line = String::new();
+                match reader.read_line(&mut line).await {
+                    Ok(0) => {
+                        warn!("Niri IPC stream ended (EOF)");
+                        self.reader = None;
+                    }
+                    Ok(_) => {
+                        trace!("Niri event: {}", line.trim());
+
+                        match serde_json::from_str::<NiriEvent>(line.trim()) {
+                            Ok(event) => {
+                                if let Some(focus_event) = self.handle_event(event) {
+                                    return Ok(focus_event);
+                                }
+                            }
+                            Err(e) => {
+                                trace!("Ignoring unparseable event: {e}");
                             }
                         }
-                        Err(e) => {
-                            trace!("Ignoring unparseable event: {e}");
-                        }
+                    }
+                    Err(e) => {
+                        warn!("Niri read error: {e}");
+                        self.reader = None;
                     }
                 }
-                Err(e) => {
-                    warn!("Niri read error: {e}");
-                    self.reader = None;
-                }
             }
-        }
+        })
     }
 }
 

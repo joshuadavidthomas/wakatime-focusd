@@ -6,7 +6,7 @@
 
 use std::env;
 
-use async_trait::async_trait;
+use futures_util::future::BoxFuture;
 use tokio::sync::mpsc;
 use tracing::debug;
 use tracing::info;
@@ -70,13 +70,14 @@ impl X11Source {
     }
 }
 
-#[async_trait]
 impl FocusSource for X11Source {
-    async fn next_event(&mut self) -> Result<FocusEvent, FocusError> {
-        self.rx
-            .recv()
-            .await
-            .ok_or_else(|| FocusError::ConnectionFailed("X11 event loop closed".to_string()))
+    fn next_event(&mut self) -> BoxFuture<'_, Result<FocusEvent, FocusError>> {
+        Box::pin(async move {
+            self.rx
+                .recv()
+                .await
+                .ok_or_else(|| FocusError::ConnectionFailed("X11 event loop closed".to_string()))
+        })
     }
 }
 
