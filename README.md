@@ -61,7 +61,15 @@ systemctl --user enable --now wakatime-focusd.service
 
 ## Configuration
 
-Create `~/.config/wakatime-focusd/config.toml`:
+Generate a default config file:
+
+```bash
+wakatime-focusd config init
+```
+
+This writes a fully documented config to `~/.config/wakatime-focusd/config.toml`. To write to a different location, use `--output <path>`.
+
+The config file is optional — the daemon works out of the box with sensible defaults. Here's what you can customize:
 
 ```toml
 # Backend for focus detection (default: "auto")
@@ -151,18 +159,26 @@ systemctl --user stop wakatime-focusd
 ### CLI Options
 
 ```
-wakatime-focusd [OPTIONS]
+wakatime-focusd [OPTIONS] [COMMAND]
+
+Commands:
+  config                     Manage configuration (init, dump)
+  oneshot                    Capture a few focus events and exit (for debugging)
 
 Options:
-  -c, --config <PATH>       Path to TOML config file
-  -b, --backend <BACKEND>   Backend override [default: auto]
-                             [values: auto, hyprland, sway, gnome, kde, niri, x11]
-      --dry-run              Log commands instead of sending heartbeats
-      --log-level <LEVEL>    Log level [default: info]
-                             [values: trace, debug, info, warn, error]
-      --print-events         Print focus events to stdout
-      --oneshot              Capture N events then exit (for debugging)
-      --oneshot-count <N>    Number of events in oneshot mode [default: 5]
+  -c, --config <PATH>        Path to TOML config file
+  -b, --backend <BACKEND>    Backend override [default: auto]
+                              [values: auto, hyprland, sway, gnome, kde, niri, x11]
+      --dry-run               Log commands instead of sending heartbeats
+      --log-level <LEVEL>     Log level [default: info]
+                              [values: trace, debug, info, warn, error]
+      --print-events          Print focus events to stdout
+```
+
+Use `config dump` to see the effective configuration after applying CLI overrides:
+
+```bash
+wakatime-focusd config dump -b sway
 ```
 
 ## Troubleshooting
@@ -179,7 +195,7 @@ Options:
 
 3. Test detection manually:
    ```bash
-   wakatime-focusd --oneshot --log-level debug
+   wakatime-focusd oneshot --log-level debug
    ```
 
 ### wakatime-cli not found

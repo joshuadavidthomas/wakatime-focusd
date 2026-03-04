@@ -100,6 +100,20 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Return the default config file content with comments.
+    ///
+    /// This is the canonical template — the same content lives in `contrib/config.toml`.
+    /// Optional fields are commented out so the file is safe to write as-is.
+    #[must_use]
+    pub fn template() -> &'static str {
+        include_str!("../contrib/config.toml")
+    }
+
+    /// Serialize the resolved config to TOML.
+    pub fn dump(&self) -> Result<String> {
+        toml::to_string_pretty(self).context("Failed to serialize config")
+    }
+
     /// Load configuration from a file path.
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
@@ -184,5 +198,42 @@ mod tests {
         assert_eq!(config.category_rules[1].category, Category::Communicating);
         assert!(config.dry_run);
         assert_eq!(config.app_denylist, Some(vec!["spotify".to_string()]));
+    }
+
+    #[test]
+    fn test_template_is_valid_toml() {
+        let config: Config = toml::from_str(Config::template()).unwrap();
+        // Template should parse to defaults since optional fields are commented out
+        assert_eq!(config.heartbeat_interval_seconds, 120);
+        assert!(!config.dry_run);
+    }
+
+    #[test]
+    fn test_dump_roundtrips() {
+        let config = Config::default();
+        let dumped = config.dump().unwrap();
+        let reloaded: Config = toml::from_str(&dumped).unwrap();
+        assert_eq!(
+            reloaded.heartbeat_interval_seconds,
+            config.heartbeat_interval_seconds
+        );
+        assert_eq!(reloaded.backend, config.backend);
+        assert_eq!(reloaded.dry_run, config.dry_run);
+        assert_eq!(reloaded.track_titles, config.track_titles);
+    }
+
+    #[test]
+    fn test_dump_preserves_overrides() {
+        let config = Config {
+            backend: Backend::Sway,
+            dry_run: true,
+            heartbeat_interval_seconds: 60,
+            ..Config::default()
+        };
+        let dumped = config.dump().unwrap();
+        let reloaded: Config = toml::from_str(&dumped).unwrap();
+        assert_eq!(reloaded.backend, Backend::Sway);
+        assert!(reloaded.dry_run);
+        assert_eq!(reloaded.heartbeat_interval_seconds, 60);
     }
 }

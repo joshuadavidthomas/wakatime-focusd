@@ -1,5 +1,7 @@
 //! wakatime-focusd binary entry point.
 
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,6 +9,7 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
+use clap::Subcommand;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
@@ -25,12 +28,15 @@ use wakatime_focusd::wakatime::WakaTimeClient;
 #[command(name = "wakatime-focusd")]
 #[command(author, version, about, long_about = None)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to config file.
-    #[arg(short, long)]
+    #[arg(short, long, global = true)]
     config: Option<PathBuf>,
 
     /// Backend to use for focus detection.
-    #[arg(short, long, default_value = "auto")]
+    #[arg(short, long, default_value = "auto", global = true)]
     backend: Backend,
 
     /// Enable dry-run mode (don't actually send heartbeats).
@@ -44,59 +50,149 @@ struct Args {
     /// Print normalized focus events to stdout.
     #[arg(long)]
     print_events: bool,
+}
 
-    /// Run in oneshot mode: connect, print a few events, then exit.
-    #[arg(long)]
-    oneshot: bool,
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Manage configuration.
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
 
-    /// Number of events to capture in oneshot mode.
-    #[arg(long, default_value = "5")]
-    oneshot_count: usize,
+    /// Capture a few focus events and exit (for debugging).
+    Oneshot {
+        /// Number of events to capture.
+        #[arg(short = 'n', long = "count", default_value = "5")]
+        count: usize,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigAction {
+    /// Create a default config file with documentation.
+    Init {
+        /// Write to this path instead of the default location.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Overwrite an existing config file.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Print the resolved configuration and exit.
+    Dump,
+}
+
+/// Return the default config file path.
+fn default_config_path() -> Result<PathBuf> {
+    let config_dir = dirs::config_dir().context("Could not determine config directory")?;
+    Ok(config_dir.join("wakatime-focusd").join("config.toml"))
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Handle subcommands that don't need the full daemon setup.
+    if let Some(command) = &args.command {
+        match command {
+            Command::Config { action } => match action {
+                ConfigAction::Init { output, force } => {
+                    return cmd_init(output.as_deref(), *force);
+                }
+                ConfigAction::Dump => return cmd_dump_config(&args),
+            },
+            Command::Oneshot { count } => return cmd_oneshot(&args, *count).await,
+        }
+    }
+
     // Initialize logging
     init_logging(&args.log_level)?;
 
     info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
-    // Load config
-    let mut config =
-        Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
+    // Load and resolve config
+    let mut config = load_config(&args)?;
 
     if args.dry_run {
         config.dry_run = true;
     }
 
-    // CLI --backend flag overrides config file
-    if args.backend != Backend::Auto {
-        config.backend = args.backend;
-    }
-
-    // Resolve the backend (auto-detect if needed)
     let backend = config
         .backend
         .resolve()
         .context("Backend detection failed")?;
     info!("Using backend: {backend}");
 
-    // Show diagnostics
     for diag in wakatime_focusd::backend::diagnostics(backend) {
         tracing::debug!("{}", diag);
     }
 
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
-    // Oneshot mode
-    if args.oneshot {
-        return run_oneshot(backend, args.oneshot_count, args.print_events).await;
-    }
-
     // Normal daemon mode
     run_daemon(backend, config, args.print_events).await
+}
+
+/// Load config and apply CLI overrides.
+fn load_config(args: &Args) -> Result<Config> {
+    let mut config =
+        Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
+
+    if args.backend != Backend::Auto {
+        config.backend = args.backend;
+    }
+
+    Ok(config)
+}
+
+/// `init` — create a default config file.
+fn cmd_init(output: Option<&Path>, force: bool) -> Result<()> {
+    let path = match output {
+        Some(p) => p.to_path_buf(),
+        None => default_config_path()?,
+    };
+
+    if path.exists() && !force {
+        anyhow::bail!(
+            "Config file already exists at {}\nUse --force to overwrite.",
+            path.display()
+        );
+    }
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {}", parent.display()))?;
+    }
+
+    fs::write(&path, Config::template())
+        .with_context(|| format!("Failed to write config to {}", path.display()))?;
+
+    println!("Config written to {}", path.display());
+    Ok(())
+}
+
+/// `dump-config` — print resolved config and exit.
+fn cmd_dump_config(args: &Args) -> Result<()> {
+    let config = load_config(args)?;
+    println!("{}", config.dump()?);
+    Ok(())
+}
+
+/// `oneshot` — capture a few events and exit.
+async fn cmd_oneshot(args: &Args, count: usize) -> Result<()> {
+    init_logging(&args.log_level)?;
+
+    let config = load_config(args)?;
+    let backend = config
+        .backend
+        .resolve()
+        .context("Backend detection failed")?;
+    info!("Using backend: {backend}");
+
+    run_oneshot(backend, count, args.print_events).await
 }
 
 /// Initialize logging with the specified level.
