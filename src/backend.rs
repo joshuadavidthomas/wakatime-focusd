@@ -6,6 +6,7 @@
 mod gnome;
 mod hyprland;
 mod kde;
+mod niri;
 mod sway;
 mod x11;
 
@@ -17,6 +18,7 @@ use clap::ValueEnum;
 pub use gnome::GnomeSource;
 pub use hyprland::HyprlandSource;
 pub use kde::KdeSource;
+pub use niri::NiriSource;
 use serde::Deserialize;
 use serde::Serialize;
 pub use sway::SwaySource;
@@ -173,7 +175,10 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = KdeSource::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Niri => Err(FocusError::BackendNotImplemented(resolved)),
+        Backend::Niri => {
+            let source = NiriSource::connect().await?;
+            Ok(Box::new(source))
+        }
         Backend::Auto => unreachable!("Auto should have been resolved"),
     }
 }
@@ -196,8 +201,8 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         Backend::Sway => SwaySource::get_diagnostics(),
         Backend::Gnome => GnomeSource::get_diagnostics(),
         Backend::Kde => KdeSource::get_diagnostics(),
+        Backend::Niri => NiriSource::get_diagnostics(),
         Backend::X11 => X11Source::get_diagnostics(),
-        other @ Backend::Niri => vec![format!("Backend {other} is not yet implemented")],
     }
 }
 
@@ -215,7 +220,4 @@ pub enum FocusError {
 
     #[error("Could not detect a supported desktop environment")]
     NoBackendDetected,
-
-    #[error("Backend '{0}' is not yet implemented")]
-    BackendNotImplemented(Backend),
 }
