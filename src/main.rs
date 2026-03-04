@@ -340,6 +340,12 @@ fn setup_shutdown_signal(shutdown: CancellationToken) {
     });
 }
 
+/// Initial delay before retrying a failed backend connection.
+const RECONNECT_INITIAL_BACKOFF: Duration = Duration::from_millis(500);
+
+/// Maximum delay between backend reconnection attempts.
+const RECONNECT_MAX_BACKOFF: Duration = Duration::from_secs(30);
+
 /// Run daemon event loop.
 async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Result<()> {
     let wakatime_client =
@@ -347,18 +353,34 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
 
     let idle_monitor = Arc::new(IdleMonitor::new());
     let shutdown = CancellationToken::new();
+    setup_shutdown_signal(shutdown.clone());
+
     idle_monitor.clone().start_polling(
         Duration::from_secs(config.idle_check_interval_seconds),
         shutdown.clone(),
     );
 
-    let shutdown = CancellationToken::new();
-    setup_shutdown_signal(shutdown.clone());
-
     info!("Daemon started, waiting for focus events...");
 
+    let mut backoff = RECONNECT_INITIAL_BACKOFF;
+
     loop {
-        let source = wakatime_focusd::backend::connect(backend).await?;
+        let source = match wakatime_focusd::backend::connect(backend).await {
+            Ok(source) => {
+                backoff = RECONNECT_INITIAL_BACKOFF;
+                source
+            }
+            Err(e) => {
+                error!(
+                    "Failed to connect to backend: {}. Retrying in {:?}...",
+                    e, backoff
+                );
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(RECONNECT_MAX_BACKOFF);
+                continue;
+            }
+        };
+
         let outcome = wakatime_focusd::run_event_loop(
             source,
             &config,
@@ -371,10 +393,12 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
 
         match outcome {
             EventLoopOutcome::SourceError(e) => {
-                // TODO: add exponential backoff here to avoid tight reconnect
-                // loops (individual backends have their own backoff, but a
-                // compositor restart can cause rapid SourceError cycles).
-                error!("Focus event error: {}, reconnecting...", e);
+                error!(
+                    "Focus event error: {}. Reconnecting in {:?}...",
+                    e, backoff
+                );
+                tokio::time::sleep(backoff).await;
+                backoff = (backoff * 2).min(RECONNECT_MAX_BACKOFF);
             }
             EventLoopOutcome::Finished | EventLoopOutcome::Shutdown => {
                 info!("Daemon shutting down");
