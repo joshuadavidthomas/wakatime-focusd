@@ -18,6 +18,11 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Added
+
+- Support for multiple desktop environments via `--backend` flag and `backend` config option (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
+- Automatic desktop environment detection — the daemon now picks the right backend without manual configuration
+
 ## [0.1.3]
 
 ### Fixed
