@@ -20,13 +20,15 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
-- Support for multiple desktop environments via `--backend` flag and `backend` config option (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
-- Automatic desktop environment detection — the daemon now picks the right backend without manual configuration
-- Sway backend — tracks focused windows via Sway's IPC socket, with support for both native Wayland (`app_id`) and XWayland (`window_properties.class`) windows
-- X11 backend — tracks focused windows on any EWMH-compliant X11 window manager (i3, bspwm, awesome, openbox, etc.) via `_NET_ACTIVE_WINDOW`
-- GNOME Shell backend — tracks focused windows via the `org.gnome.Shell.Introspect` D-Bus interface
-- KDE Plasma backend — tracks focused windows via a KWin script that monitors `workspace.windowActivated` and reports back over D-Bus
-- Niri backend — tracks focused windows via Niri's JSON IPC socket
+- **Multi-desktop support** — wakatime-focusd now works on most Linux desktop environments, not just Hyprland:
+  - **Sway** — native IPC tracking for both Wayland and XWayland windows
+  - **GNOME Shell** — focus tracking via D-Bus
+  - **KDE Plasma** — focus tracking via KWin scripting and D-Bus
+  - **Niri** — native IPC tracking via Niri's JSON socket
+  - **X11** — generic fallback for any EWMH-compliant window manager (i3, bspwm, awesome, openbox, etc.)
+- **Automatic backend detection** — the daemon detects your desktop environment and picks the right backend. No configuration needed in most cases.
+- `--backend` CLI flag and `backend` config option for manual override (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
+- Comprehensive integration test suite covering all backends, the full event pipeline, and reconnection behavior
 
 ## [0.1.3]
 
