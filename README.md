@@ -156,7 +156,7 @@ journalctl --user -u wakatime-focusd -f
 systemctl --user stop wakatime-focusd
 ```
 
-### CLI Options
+### CLI
 
 <!-- [[[cog
 import subprocess
@@ -177,11 +177,11 @@ for i, (args, label) in enumerate(commands):
         stderr=subprocess.DEVNULL,
     )
     output = result.stdout.decode("utf-8").rstrip()
-    cog.outl(f"```\n$ {label}\n{output}\n```")
+    cog.outl(f"```bash\n$ {label}\n{output}\n```")
     if i < len(commands) - 1:
         cog.outl()
 ]]] -->
-```
+```bash
 $ wakatime-focusd --help
 Systemd user daemon for WakaTime app heartbeats
 
@@ -228,7 +228,7 @@ Options:
           Print version
 ```
 
-```
+```bash
 $ wakatime-focusd config --help
 Manage configuration
 
@@ -261,7 +261,7 @@ Options:
           Print help (see a summary with '-h')
 ```
 
-```
+```bash
 $ wakatime-focusd config init --help
 Create a default config file with documentation
 
@@ -295,7 +295,7 @@ Options:
           Print help (see a summary with '-h')
 ```
 
-```
+```bash
 $ wakatime-focusd config dump --help
 Print the resolved configuration and exit
 
@@ -323,7 +323,7 @@ Options:
           Print help (see a summary with '-h')
 ```
 
-```
+```bash
 $ wakatime-focusd oneshot --help
 Capture a few focus events and exit (for debugging)
 
@@ -356,12 +356,6 @@ Options:
           Print help (see a summary with '-h')
 ```
 <!-- [[[end]]] -->
-
-Use `config dump` to see the effective configuration after applying CLI overrides:
-
-```bash
-wakatime-focusd config dump -b sway
-```
 
 ## Troubleshooting
 
