@@ -103,9 +103,7 @@ impl SwaySource {
     /// Send an IPC message with the i3/sway binary protocol.
     async fn send_message(&mut self, msg_type: u32, payload: &[u8]) -> Result<(), FocusError> {
         let Some(stream) = &mut self.stream else {
-            return Err(FocusError::ConnectionFailed(
-                "Not connected".to_string(),
-            ));
+            return Err(FocusError::ConnectionFailed("Not connected".to_string()));
         };
 
         let mut header = Vec::with_capacity(IPC_HEADER_SIZE + payload.len());
@@ -126,9 +124,7 @@ impl SwaySource {
     /// Read an IPC message, returning (type, payload).
     async fn read_message(&mut self) -> Result<(u32, Vec<u8>), FocusError> {
         let Some(stream) = &mut self.stream else {
-            return Err(FocusError::ConnectionFailed(
-                "Not connected".to_string(),
-            ));
+            return Err(FocusError::ConnectionFailed("Not connected".to_string()));
         };
 
         let mut header = [0u8; IPC_HEADER_SIZE];
@@ -160,7 +156,10 @@ impl SwaySource {
     async fn reconnect(&mut self) -> Result<(), FocusError> {
         const MAX_BACKOFF: Duration = Duration::from_secs(5);
 
-        warn!("Sway IPC connection lost. Retrying in {:?}...", self.backoff);
+        warn!(
+            "Sway IPC connection lost. Retrying in {:?}...",
+            self.backoff
+        );
         tokio::time::sleep(self.backoff).await;
         self.backoff = std::cmp::min(self.backoff * 2, MAX_BACKOFF);
 
@@ -217,8 +216,8 @@ impl FocusSource for SwaySource {
 
 /// Get the Sway IPC socket path from `SWAYSOCK`.
 fn get_socket_path() -> Result<PathBuf, FocusError> {
-    let path = env::var("SWAYSOCK")
-        .map_err(|_| FocusError::EnvVarNotSet("SWAYSOCK".to_string()))?;
+    let path =
+        env::var("SWAYSOCK").map_err(|_| FocusError::EnvVarNotSet("SWAYSOCK".to_string()))?;
 
     let path = PathBuf::from(path);
 
