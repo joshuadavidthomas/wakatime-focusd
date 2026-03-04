@@ -109,7 +109,7 @@ impl Config {
 # Location: ~/.config/wakatime-focusd/config.toml
 
 # Backend for focus detection (default: "auto")
-# Options: auto, hyprland, sway, gnome, kde, niri, wlr-foreign-toplevel, x11
+# Options: auto, hyprland, sway, gnome, kde, niri, cosmic, wlr-foreign-toplevel, x11
 # "auto" detects your desktop environment automatically.
 # backend = "auto"
 

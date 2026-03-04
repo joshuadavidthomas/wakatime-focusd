@@ -20,6 +20,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
+- **COSMIC backend** — dedicated backend for the COSMIC desktop environment (Pop!_OS default) using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
 - **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
 
 ## [0.2.0]

@@ -203,6 +203,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "cosmic-protocols"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7c156d3b5815830a795eb35d6bac833a72cede4861e9eda935d4ffa37415ff"
+dependencies = [
+ "bitflags",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
+ "wayland-scanner",
+ "wayland-server",
+]
+
+[[package]]
 name = "crossbeam-utils"
 version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1172,6 +1187,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
+ "cosmic-protocols",
  "dbus-launch",
  "dirs",
  "futures-util",
@@ -1187,6 +1203,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wayland-client",
+ "wayland-protocols",
  "wayland-protocols-wlr",
  "wayland-server",
  "which",
