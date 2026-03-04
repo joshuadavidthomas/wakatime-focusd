@@ -59,7 +59,8 @@ To uninstall the service:
 wakatime-focusd service uninstall
 ```
 
-> **Important:** Your desktop environment's variables must be visible to systemd user services. Most Wayland compositors and display managers handle this, but if the service can't detect your backend, add this to your compositor's startup:
+> [!IMPORTANT]
+> Your desktop environment's variables must be visible to systemd user services. Most Wayland compositors and display managers handle this, but if the service can't detect your backend, add this to your compositor's startup:
 >
 > ```bash
 > dbus-update-activation-environment --systemd \
