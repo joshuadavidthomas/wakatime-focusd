@@ -77,17 +77,17 @@ Niri compositor IPC via `NIRI_SOCKET` Unix socket.
 
 Full-fidelity integration tests for all backends and the daemon event loop, runnable in CI without real desktop environments.
 
-### 7. `integration-test-infra` — Mock FocusSource + daemon loop tests
+### 7. `integration-test-infra` — Mock FocusSource + daemon loop tests ✅
 
 Refactor `run_daemon`/`run_oneshot` to accept a `Box<dyn FocusSource>` (or factory) so the full event pipeline can be tested with scripted events.
 
-- [ ] Refactor `run_daemon` and `run_oneshot` to accept injected source
-- [ ] Create `MockFocusSource` that replays a scripted sequence of `FocusEvent`s
-- [ ] Test full pipeline: event → allowlist/denylist filter → heartbeat build → throttle dedup → idle gating → send
-- [ ] Test periodic heartbeat timer fires for sustained focus on same app
-- [ ] Test rapid focus switching (A → B → A within throttle window)
-- [ ] Test idle suppression (events arrive while session is idle)
-- [ ] Test empty/no-focus events are skipped
+- [x] Refactor `run_daemon` and `run_oneshot` to accept injected source
+- [x] Create `MockFocusSource` that replays a scripted sequence of `FocusEvent`s
+- [x] Test full pipeline: event → allowlist/denylist filter → heartbeat build → throttle dedup → idle gating → send
+- [x] Test periodic heartbeat timer fires for sustained focus on same app
+- [x] Test rapid focus switching (A → B → A within throttle window)
+- [x] Test idle suppression (events arrive while session is idle)
+- [x] Test empty/no-focus events are skipped
 
 ### 8. `integration-test-sockets` — Fake socket servers for Hyprland, Sway, Niri
 
