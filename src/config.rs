@@ -102,11 +102,10 @@ impl Default for Config {
 impl Config {
     /// Return the default config file content with comments.
     ///
-    /// This is the canonical template — the same content lives in `contrib/config.toml`.
     /// Optional fields are commented out so the file is safe to write as-is.
     #[must_use]
     pub fn template() -> &'static str {
-        include_str!("../contrib/config.toml")
+        include_str!("config_template.toml")
     }
 
     /// Serialize the resolved config to TOML.
