@@ -11,6 +11,7 @@ use std::time::Duration;
 use anyhow::Result;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 use wakatime_focusd::EventLoopOutcome;
 use wakatime_focusd::backend::FocusError;
 use wakatime_focusd::backend::FocusEvent;
@@ -106,10 +107,19 @@ async fn run_pipeline(events: Vec<FocusEvent>, config: Config) -> Vec<SentRecord
     let source = MockFocusSource::from_events(events);
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
+    let shutdown = CancellationToken::new();
     // Disable idle monitoring so it doesn't try to reach D-Bus
     idle_monitor.disable();
 
-    let outcome = run_event_loop(Box::new(source), &config, &sender, &idle_monitor, false).await;
+    let outcome = run_event_loop(
+        Box::new(source),
+        &config,
+        &sender,
+        &idle_monitor,
+        &shutdown,
+        false,
+    )
+    .await;
 
     // Should always end with SourceError when mock is exhausted
     assert!(
@@ -268,6 +278,7 @@ async fn test_idle_suppression() {
     let source = MockFocusSource::from_events(vec![event("firefox", None), event("code", None)]);
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
+    let shutdown = CancellationToken::new();
     // Mark as idle (don't start polling — just set the atomic directly)
     idle_monitor.set_idle(true);
 
@@ -276,6 +287,7 @@ async fn test_idle_suppression() {
         &Config::default(),
         &sender,
         &idle_monitor,
+        &shutdown,
         false,
     )
     .await;
@@ -293,6 +305,7 @@ async fn test_idle_transitions() {
     let (source, tx) = MockFocusSource::with_sender();
     let (sender, sent) = RecordingSender::new();
     let idle_monitor = Arc::new(IdleMonitor::new());
+    let shutdown = CancellationToken::new();
     // Not idle initially, don't start D-Bus polling
 
     let idle_ref = Arc::clone(&idle_monitor);
@@ -303,7 +316,15 @@ async fn test_idle_transitions() {
     };
 
     let handle = tokio::spawn(async move {
-        run_event_loop(Box::new(source), &config, &sender, &idle_ref, false).await
+        run_event_loop(
+            Box::new(source),
+            &config,
+            &sender,
+            &idle_ref,
+            &shutdown,
+            false,
+        )
+        .await
     });
 
     // Send event while not idle — should be sent
@@ -348,6 +369,7 @@ async fn test_periodic_heartbeat_timer() {
     let (source, tx) = MockFocusSource::with_sender();
     let (sender, sent_arc) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
+    let shutdown = CancellationToken::new();
     idle_monitor.disable(); // Don't use D-Bus
 
     let config = Config {
@@ -359,8 +381,15 @@ async fn test_periodic_heartbeat_timer() {
     let handle = tokio::spawn({
         let sent_arc = Arc::clone(&sent_arc);
         async move {
-            let outcome =
-                run_event_loop(Box::new(source), &config, &sender, &idle_monitor, false).await;
+            let outcome = run_event_loop(
+                Box::new(source),
+                &config,
+                &sender,
+                &idle_monitor,
+                &shutdown,
+                false,
+            )
+            .await;
             (outcome, sent_arc)
         }
     });
@@ -406,6 +435,7 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
     let (source, tx) = MockFocusSource::with_sender();
     let (sender, sent_arc) = RecordingSender::new();
     let idle_monitor = Arc::new(IdleMonitor::new());
+    let shutdown = CancellationToken::new();
     // Not idle initially, but don't start polling
 
     let config = Config {
@@ -418,8 +448,15 @@ async fn test_periodic_heartbeat_suppressed_when_idle() {
     let handle = tokio::spawn({
         let sent_arc = Arc::clone(&sent_arc);
         async move {
-            let outcome =
-                run_event_loop(Box::new(source), &config, &sender, &idle_ref, false).await;
+            let outcome = run_event_loop(
+                Box::new(source),
+                &config,
+                &sender,
+                &idle_ref,
+                &shutdown,
+                false,
+            )
+            .await;
             (outcome, sent_arc)
         }
     });
@@ -536,6 +573,7 @@ async fn test_source_error_returns_source_error_outcome() {
     let source = MockFocusSource::from_events(vec![]);
     let (sender, _sent) = RecordingSender::new();
     let idle_monitor = IdleMonitor::new();
+    let shutdown = CancellationToken::new();
     idle_monitor.disable();
 
     let outcome = run_event_loop(
@@ -543,6 +581,7 @@ async fn test_source_error_returns_source_error_outcome() {
         &Config::default(),
         &sender,
         &idle_monitor,
+        &shutdown,
         false,
     )
     .await;

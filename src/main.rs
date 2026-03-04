@@ -308,6 +308,38 @@ async fn run_oneshot_with_source(
     Ok(())
 }
 
+/// Install signal handlers and return a [`CancellationToken`] that is
+/// cancelled on `SIGINT` or `SIGTERM`.
+fn setup_shutdown_signal(shutdown: CancellationToken) {
+    tokio::spawn(async move {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::SignalKind;
+            use tokio::signal::unix::signal;
+
+            let mut sigterm =
+                signal(SignalKind::terminate()).expect("failed to register SIGTERM handler");
+            let mut sigint =
+                signal(SignalKind::interrupt()).expect("failed to register SIGINT handler");
+
+            tokio::select! {
+                _ = sigterm.recv() => info!("Received SIGTERM"),
+                _ = sigint.recv() => info!("Received SIGINT"),
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("failed to register ctrl-c handler");
+            info!("Received ctrl-c");
+        }
+
+        shutdown.cancel();
+    });
+}
+
 /// Run daemon event loop.
 async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Result<()> {
     let wakatime_client =
@@ -320,6 +352,9 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
         shutdown.clone(),
     );
 
+    let shutdown = CancellationToken::new();
+    setup_shutdown_signal(shutdown.clone());
+
     info!("Daemon started, waiting for focus events...");
 
     loop {
@@ -329,6 +364,7 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
             &config,
             &wakatime_client,
             &idle_monitor,
+            &shutdown,
             print_events,
         )
         .await;
@@ -340,7 +376,10 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
                 // compositor restart can cause rapid SourceError cycles).
                 error!("Focus event error: {}, reconnecting...", e);
             }
-            EventLoopOutcome::Finished => return Ok(()),
+            EventLoopOutcome::Finished | EventLoopOutcome::Shutdown => {
+                info!("Daemon shutting down");
+                return Ok(());
+            }
         }
     }
 }

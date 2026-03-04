@@ -13,7 +13,9 @@ pub mod wakatime;
 
 use std::time::Duration;
 
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
+use tracing::info;
 use tracing::warn;
 
 use crate::backend::FocusSource;
@@ -29,6 +31,8 @@ pub enum EventLoopOutcome {
     SourceError(crate::backend::FocusError),
     /// The loop completed normally (e.g., source was exhausted).
     Finished,
+    /// Shutdown was requested via the cancellation token.
+    Shutdown,
 }
 
 /// Core event loop, decoupled from backend connection for testability.
@@ -41,6 +45,7 @@ pub async fn run_event_loop(
     config: &Config,
     sender: &(dyn wakatime::HeartbeatSender + Sync),
     idle_monitor: &IdleMonitor,
+    shutdown: &CancellationToken,
     print_events: bool,
 ) -> EventLoopOutcome {
     let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
@@ -51,6 +56,11 @@ pub async fn run_event_loop(
 
     loop {
         tokio::select! {
+            () = shutdown.cancelled() => {
+                info!("Shutdown signal received, exiting event loop");
+                return EventLoopOutcome::Shutdown;
+            }
+
             event = source.next_event() => {
                 match event {
                     Ok(focus_event) => {
