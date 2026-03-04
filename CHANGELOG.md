@@ -30,11 +30,18 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 - `--backend` CLI flag and `backend` config option for manual override (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
 - `wakatime-focusd config init` command — generates a documented default config file at `~/.config/wakatime-focusd/config.toml` (with `--output` and `--force` options)
 - `wakatime-focusd config dump` command — prints the resolved configuration (after CLI overrides) and exits, useful for debugging
+- `wakatime-focusd service install` command — generates and installs the systemd user service file, using the current binary path for `ExecStart` (with `--now` to enable/start immediately and `--force` to overwrite)
+- `wakatime-focusd service uninstall` command — stops, disables, and removes the systemd user service
+- `wakatime-focusd service status` command — shows the service status
 - Comprehensive integration test suite covering all backends, the full event pipeline, and reconnection behavior
 
 ### Changed
 
 - **Breaking:** `--oneshot` flag replaced by `wakatime-focusd oneshot` subcommand (`--oneshot-count` is now `--count` / `-n`)
+
+### Removed
+
+- `contrib/` directory — the static service file and example config are replaced by the `service install` and `config init` commands
 
 ## [0.1.3]
 
