@@ -3,6 +3,7 @@
 //! This module provides a generic abstraction for detecting window focus changes
 //! across different window managers and desktop environments.
 
+mod gnome;
 mod hyprland;
 mod sway;
 mod x11;
@@ -12,6 +13,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 use clap::ValueEnum;
+pub use gnome::GnomeSource;
 pub use hyprland::HyprlandSource;
 use serde::Deserialize;
 use serde::Serialize;
@@ -161,7 +163,11 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = X11Source::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Gnome | Backend::Kde | Backend::Niri => {
+        Backend::Gnome => {
+            let source = GnomeSource::connect().await?;
+            Ok(Box::new(source))
+        }
+        Backend::Kde | Backend::Niri => {
             Err(FocusError::BackendNotImplemented(resolved))
         }
         Backend::Auto => unreachable!("Auto should have been resolved"),
@@ -184,6 +190,7 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         }
         Backend::Hyprland => HyprlandSource::get_diagnostics(),
         Backend::Sway => SwaySource::get_diagnostics(),
+        Backend::Gnome => GnomeSource::get_diagnostics(),
         Backend::X11 => X11Source::get_diagnostics(),
         other => vec![format!("Backend {other} is not yet implemented")],
     }
