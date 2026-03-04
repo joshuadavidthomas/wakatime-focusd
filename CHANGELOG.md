@@ -23,6 +23,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 - Support for multiple desktop environments via `--backend` flag and `backend` config option (`auto`, `hyprland`, `sway`, `gnome`, `kde`, `niri`, `x11`)
 - Automatic desktop environment detection — the daemon now picks the right backend without manual configuration
 - Sway backend — tracks focused windows via Sway's IPC socket, with support for both native Wayland (`app_id`) and XWayland (`window_properties.class`) windows
+- X11 backend — tracks focused windows on any EWMH-compliant X11 window manager (i3, bspwm, awesome, openbox, etc.) via `_NET_ACTIVE_WINDOW`
 
 ## [0.1.3]
 
