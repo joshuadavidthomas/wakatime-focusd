@@ -22,6 +22,12 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 - **COSMIC backend** — dedicated backend for the COSMIC desktop environment (Pop!_OS default) using `zcosmic_toplevel_info_v1` and `ext-foreign-toplevel-list-v1` protocols. Auto-detected via `XDG_CURRENT_DESKTOP=COSMIC`.
 - **wlr-foreign-toplevel backend** — generic Wayland backend using the `wlr-foreign-toplevel-management-unstable-v1` protocol, covering River, Wayfire, labwc, dwl, and any other compositor that implements this protocol. Auto-detected as a Wayland fallback when no compositor-specific environment variable is found.
+- **Graceful shutdown** — the daemon now handles `SIGINT` and `SIGTERM` signals and exits cleanly, instead of being abruptly killed.
+- **Automatic reconnection with backoff** — the daemon now survives compositor restarts. If the backend connection is lost, it retries with exponential backoff (up to 30 seconds) instead of crashing.
+
+### Changed
+
+- Category rule patterns in the config file now document that they are **substring matches** (not exact). Use `^...$` anchors for exact matching (e.g. `"^code$"` to match only `"code"`, not `"unicode-input"`).
 
 ## [0.2.0]
 
