@@ -23,9 +23,13 @@ pub enum TitleStrategy {
 }
 
 /// Category rule for pattern-based category assignment.
+///
+/// Patterns are case-insensitive regexes that match **anywhere** in the
+/// `app_class` string (substring match). Use `^...$` anchors for exact
+/// matching, e.g. `"^code$"` matches only `"code"`, not `"unicode-input"`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CategoryRule {
-    /// Regex pattern to match `app_class` (case-insensitive).
+    /// Regex pattern to match `app_class` (case-insensitive, substring match).
     pub pattern: String,
     /// Category to assign when pattern matches.
     pub category: Category,
@@ -137,7 +141,9 @@ title_strategy = "ignore"
 # See: https://wakatime.com/developers#heartbeats
 default_category = "coding"
 
-# Category rules - first match wins (case-insensitive regex)
+# Category rules - first match wins (case-insensitive regex, substring match).
+# Patterns match anywhere in the app class. Use ^...$ anchors for exact matches,
+# e.g. "^code$" matches only "code", not "unicode-input".
 # [[category_rules]]
 # pattern = "firefox|chromium|brave|zen-browser"
 # category = "browsing"
