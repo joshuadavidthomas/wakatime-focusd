@@ -81,6 +81,9 @@ impl HeartbeatBuilder {
     }
 
     /// Match the category for an app class using rules.
+    ///
+    /// Patterns are substring matches (not anchored). A pattern like `"code"`
+    /// will match `"unicode-input"`. Use `^...$` anchors in config for exact matching.
     fn match_category(&self, app_class: &str) -> Category {
         for rule in &self.rules {
             if rule.pattern.is_match(app_class) {
