@@ -13,10 +13,11 @@ wakatime-focusd auto-detects your desktop environment. No manual configuration i
 | **Niri** | JSON IPC socket events |
 | **GNOME Shell** | D-Bus (`org.gnome.Shell.Introspect`) |
 | **KDE Plasma** | KWin script + D-Bus |
+| **COSMIC** (Pop!_OS) | `zcosmic-toplevel-info` + `ext-foreign-toplevel-list` protocols |
 | **Wayland** (wlr-foreign-toplevel) | `wlr-foreign-toplevel-management` protocol — works with River, Wayfire, labwc, dwl, etc. |
 | **X11** (any WM) | `_NET_ACTIVE_WINDOW` — works with i3, bspwm, awesome, openbox, etc. |
 
-Auto-detection checks Wayland-native compositors first, then falls back to the generic `wlr-foreign-toplevel` protocol for other Wayland compositors, and finally to X11.
+Auto-detection checks Wayland-native compositors first (including COSMIC via `XDG_CURRENT_DESKTOP`), then falls back to the generic `wlr-foreign-toplevel` protocol for other Wayland compositors, and finally to X11.
 
 ## How It Works
 
@@ -100,7 +101,7 @@ cog.outl(f"```toml\n{output}\n```")
 # Location: ~/.config/wakatime-focusd/config.toml
 
 # Backend for focus detection (default: "auto")
-# Options: auto, hyprland, sway, gnome, kde, niri, wlr-foreign-toplevel, x11
+# Options: auto, hyprland, sway, gnome, kde, niri, cosmic, wlr-foreign-toplevel, x11
 # "auto" detects your desktop environment automatically.
 # backend = "auto"
 
@@ -240,6 +241,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -288,6 +290,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -323,6 +326,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -352,6 +356,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -387,6 +392,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -424,6 +430,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -455,6 +462,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -484,6 +492,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           
@@ -518,6 +527,7 @@ Options:
           - gnome:                GNOME Shell (Mutter)
           - kde:                  KDE Plasma (`KWin`)
           - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
           - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
           - x11:                  Generic X11 (fallback for any X11 window manager)
           

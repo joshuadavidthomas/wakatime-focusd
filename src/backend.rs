@@ -3,6 +3,7 @@
 //! This module provides a generic abstraction for detecting window focus changes
 //! across different window managers and desktop environments.
 
+mod cosmic;
 mod gnome;
 mod hyprland;
 mod kde;
@@ -16,6 +17,7 @@ use std::fmt;
 
 use async_trait::async_trait;
 use clap::ValueEnum;
+use cosmic::CosmicSource;
 use gnome::GnomeSource;
 use hyprland::HyprlandSource;
 use kde::KdeSource;
@@ -86,6 +88,8 @@ pub enum Backend {
     Kde,
     /// Niri compositor.
     Niri,
+    /// COSMIC desktop.
+    Cosmic,
     /// Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.).
     #[serde(rename = "wlr-foreign-toplevel")]
     #[value(name = "wlr-foreign-toplevel")]
@@ -103,6 +107,7 @@ impl fmt::Display for Backend {
             Self::Gnome => write!(f, "gnome"),
             Self::Kde => write!(f, "kde"),
             Self::Niri => write!(f, "niri"),
+            Self::Cosmic => write!(f, "cosmic"),
             Self::WlrForeignToplevel => write!(f, "wlr-foreign-toplevel"),
             Self::X11 => write!(f, "x11"),
         }
@@ -139,6 +144,10 @@ impl Backend {
             if desktop_upper.contains("GNOME") {
                 info!("Detected GNOME environment (XDG_CURRENT_DESKTOP={desktop})");
                 return Ok(Self::Gnome);
+            }
+            if desktop_upper.contains("COSMIC") {
+                info!("Detected COSMIC environment (XDG_CURRENT_DESKTOP={desktop})");
+                return Ok(Self::Cosmic);
             }
         }
 
@@ -193,6 +202,10 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = NiriSource::connect().await?;
             Ok(Box::new(source))
         }
+        Backend::Cosmic => {
+            let source = CosmicSource::connect().await?;
+            Ok(Box::new(source))
+        }
         Backend::WlrForeignToplevel => {
             let source = WlrForeignToplevelSource::connect().await?;
             Ok(Box::new(source))
@@ -221,6 +234,7 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         Backend::Gnome => GnomeSource::get_diagnostics(),
         Backend::Kde => KdeSource::get_diagnostics(),
         Backend::Niri => NiriSource::get_diagnostics(),
+        Backend::Cosmic => CosmicSource::get_diagnostics(),
         Backend::WlrForeignToplevel => WlrForeignToplevelSource::get_diagnostics(),
         Backend::X11 => X11Source::get_diagnostics(),
     }
