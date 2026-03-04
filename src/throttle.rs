@@ -61,7 +61,7 @@ impl HeartbeatThrottle {
     pub fn should_send(&self, entity: &Entity) -> ThrottleDecision {
         // First heartbeat - always send
         let Some(ref last_sent) = self.last_sent else {
-            debug!("First heartbeat for entity: {}", entity.as_str());
+            debug!("First heartbeat for entity: {}", entity);
             return ThrottleDecision::Send;
         };
 
@@ -69,8 +69,7 @@ impl HeartbeatThrottle {
         if &last_sent.heartbeat.entity != entity {
             debug!(
                 "Entity changed: {} -> {}, sending heartbeat",
-                last_sent.heartbeat.entity.as_str(),
-                entity.as_str()
+                last_sent.heartbeat.entity, entity
             );
             return ThrottleDecision::Send;
         }
@@ -82,17 +81,13 @@ impl HeartbeatThrottle {
         if elapsed >= threshold {
             debug!(
                 "Same entity '{}', elapsed {:?} >= threshold {:?}, sending",
-                entity.as_str(),
-                elapsed,
-                threshold
+                entity, elapsed, threshold
             );
             ThrottleDecision::Send
         } else {
             debug!(
                 "Throttled: same entity '{}', elapsed {:?} < threshold {:?}",
-                entity.as_str(),
-                elapsed,
-                threshold
+                entity, elapsed, threshold
             );
             ThrottleDecision::Skip
         }

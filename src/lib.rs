@@ -102,7 +102,7 @@ pub async fn run_event_loop(
                     let periodic_heartbeat = last_heartbeat.clone();
                     debug!(
                         "Sending periodic heartbeat for: {}",
-                        periodic_heartbeat.entity.as_str()
+                        periodic_heartbeat.entity
                     );
                     match sender.send_heartbeat(&periodic_heartbeat).await {
                         Ok(()) => throttle.record_sent(periodic_heartbeat),
@@ -154,7 +154,7 @@ async fn handle_focus_event(
     // Check throttle
     match throttle.should_send(&heartbeat.entity) {
         ThrottleDecision::Send => {
-            debug!("Sending heartbeat for: {}", heartbeat.entity.as_str());
+            debug!("Sending heartbeat for: {}", heartbeat.entity);
             if let Err(e) = sender.send_heartbeat(&heartbeat).await {
                 warn!("Failed to send heartbeat: {}", e);
             } else {
@@ -162,7 +162,7 @@ async fn handle_focus_event(
             }
         }
         ThrottleDecision::Skip => {
-            debug!("Throttled heartbeat for: {}", heartbeat.entity.as_str());
+            debug!("Throttled heartbeat for: {}", heartbeat.entity);
         }
     }
 }
