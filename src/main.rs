@@ -11,7 +11,6 @@ mod idle;
 mod throttle;
 mod wakatime;
 
-use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,9 +24,8 @@ use tracing::info;
 use tracing::warn;
 use tracing_subscriber::EnvFilter;
 
+use crate::backend::Backend;
 use crate::backend::FocusEvent;
-use crate::backend::FocusSource;
-use crate::backend::HyprlandSource;
 use crate::config::Config;
 use crate::heartbeat::HeartbeatBuilder;
 use crate::idle::IdleMonitor;
@@ -35,7 +33,7 @@ use crate::throttle::HeartbeatThrottle;
 use crate::throttle::ThrottleDecision;
 use crate::wakatime::WakaTimeClient;
 
-/// `WakaTime` focus daemon for Hyprland.
+/// `WakaTime` focus daemon.
 ///
 /// Tracks currently focused desktop application and sends heartbeats to `WakaTime`.
 #[derive(Parser, Debug)]
@@ -45,6 +43,10 @@ struct Args {
     /// Path to config file.
     #[arg(short, long)]
     config: Option<PathBuf>,
+
+    /// Backend to use for focus detection.
+    #[arg(short, long, default_value = "auto")]
+    backend: Backend,
 
     /// Enable dry-run mode (don't actually send heartbeats).
     #[arg(long)]
@@ -76,24 +78,6 @@ async fn main() -> Result<()> {
 
     info!("wakatime-focusd v{} starting", env!("CARGO_PKG_VERSION"));
 
-    // Check environment
-    if env::var("XDG_RUNTIME_DIR").is_err() {
-        error!("Hyprland environment not detected.");
-        error!("Required environment variables:");
-        for diag in HyprlandSource::get_diagnostics() {
-            error!("  {}", diag);
-        }
-        error!("");
-        error!("If running as a systemd user service, ensure these variables are available.");
-        error!("See: dbus-update-activation-environment --systemd XDG_RUNTIME_DIR");
-        anyhow::bail!("Hyprland environment not available");
-    }
-
-    // Show diagnostics
-    for diag in HyprlandSource::get_diagnostics() {
-        debug!("{}", diag);
-    }
-
     // Load config
     let mut config =
         Config::load_or_default(args.config.as_deref()).context("Failed to load configuration")?;
@@ -102,15 +86,32 @@ async fn main() -> Result<()> {
         config.dry_run = true;
     }
 
+    // CLI --backend flag overrides config file
+    if args.backend != Backend::Auto {
+        config.backend = args.backend;
+    }
+
+    // Resolve the backend (auto-detect if needed)
+    let backend = config
+        .backend
+        .resolve()
+        .context("Backend detection failed")?;
+    info!("Using backend: {backend}");
+
+    // Show diagnostics
+    for diag in crate::backend::diagnostics(backend) {
+        debug!("{}", diag);
+    }
+
     info!("Configuration loaded (dry_run={})", config.dry_run);
 
     // Oneshot mode
     if args.oneshot {
-        return run_oneshot(args.oneshot_count, args.print_events).await;
+        return run_oneshot(backend, args.oneshot_count, args.print_events).await;
     }
 
     // Normal daemon mode
-    run_daemon(config, args.print_events).await
+    run_daemon(backend, config, args.print_events).await
 }
 
 /// Initialize logging with the specified level.
@@ -129,10 +130,10 @@ fn init_logging(level: &str) -> Result<()> {
 }
 
 /// Run in oneshot mode: capture a few events and exit.
-async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
+async fn run_oneshot(backend: Backend, count: usize, print_events: bool) -> Result<()> {
     info!("Running in oneshot mode, capturing {} events", count);
 
-    let mut source = HyprlandSource::connect().await?;
+    let mut source = crate::backend::connect(backend).await?;
 
     // Capture events
     let mut captured = 0;
@@ -168,7 +169,7 @@ async fn run_oneshot(count: usize, print_events: bool) -> Result<()> {
 }
 
 /// Run daemon event loop.
-async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
+async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Result<()> {
     // Initialize components
     let wakatime_client =
         WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
@@ -187,7 +188,7 @@ async fn run_daemon(config: Config, print_events: bool) -> Result<()> {
     info!("Daemon started, waiting for focus events...");
 
     loop {
-        let mut source = HyprlandSource::connect().await?;
+        let mut source = crate::backend::connect(backend).await?;
 
         loop {
             tokio::select! {

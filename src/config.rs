@@ -8,6 +8,7 @@ use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::backend::Backend;
 use crate::domain::Category;
 
 /// Title handling strategy when `track_titles` is enabled.
@@ -34,6 +35,9 @@ pub struct CategoryRule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    /// Which backend to use for focus detection (default: auto).
+    pub backend: Backend,
+
     /// Interval between heartbeats in seconds (default: 120).
     pub heartbeat_interval_seconds: u64,
 
@@ -78,6 +82,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            backend: Backend::default(),
             heartbeat_interval_seconds: 120,
             min_entity_resend_seconds: 120,
             track_titles: false,
@@ -129,12 +134,23 @@ mod tests {
     #[test]
     fn test_default_config() {
         let config = Config::default();
+        assert_eq!(config.backend, Backend::Auto);
         assert_eq!(config.heartbeat_interval_seconds, 120);
         assert_eq!(config.min_entity_resend_seconds, 120);
         assert!(!config.track_titles);
         assert_eq!(config.default_category, Category::Coding);
         assert!(config.category_rules.is_empty());
         assert!(!config.dry_run);
+    }
+
+    #[test]
+    fn test_parse_toml_with_backend() {
+        let toml_str = r#"
+            backend = "sway"
+            heartbeat_interval_seconds = 60
+        "#;
+        let config: Config = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.backend, Backend::Sway);
     }
 
     #[test]
