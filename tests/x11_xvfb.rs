@@ -49,6 +49,8 @@ fn clean_stale_display(display_num: u32) {
 /// duration of the test. The display string is e.g. `:99`.
 ///
 /// Automatically cleans up stale lock files from previous crashed runs.
+/// Polls for the X11 socket to appear instead of using a fixed sleep,
+/// avoiding flaky failures when Xvfb takes longer to start.
 fn start_xvfb() -> (Child, String) {
     // Try display numbers starting from 99 to avoid conflicts
     for display_num in 99..120 {
@@ -75,9 +77,15 @@ fn start_xvfb() -> (Child, String) {
             .spawn();
 
         if let Ok(child) = child {
-            // Give Xvfb time to start
-            std::thread::sleep(Duration::from_millis(500));
-            return (child, display);
+            let socket_path = format!("/tmp/.X11-unix/X{display_num}");
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            while std::time::Instant::now() < deadline {
+                if std::path::Path::new(&socket_path).exists() {
+                    return (child, display);
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            panic!("Xvfb started but socket {socket_path} never appeared");
         }
     }
     panic!("Could not find a free display number for Xvfb");
