@@ -10,6 +10,7 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context;
 use anyhow::Result;
+use async_trait::async_trait;
 use tokio::process::Command;
 use tracing::debug;
 use tracing::error;
@@ -19,6 +20,13 @@ use tracing::warn;
 
 use crate::config::Config;
 use crate::domain::Heartbeat;
+
+/// Trait for sending heartbeats to `WakaTime`.
+#[async_trait]
+pub trait HeartbeatSender: Send {
+    /// Send a heartbeat. Returns Ok(()) on success.
+    async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()>;
+}
 
 /// Rate limiter for error logging.
 static ERROR_LOG_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -124,6 +132,13 @@ impl WakaTimeClient {
 
             anyhow::bail!("wakatime-cli exited with code {:?}", result.status.code())
         }
+    }
+}
+
+#[async_trait]
+impl HeartbeatSender for WakaTimeClient {
+    async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
+        self.send_heartbeat(heartbeat).await
     }
 }
 

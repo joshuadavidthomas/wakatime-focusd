@@ -1,15 +1,4 @@
-//! wakatime-focusd - Systemd user daemon for `WakaTime` app heartbeats.
-//!
-//! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
-//! using wakatime-cli.
-
-mod backend;
-mod config;
-mod domain;
-mod heartbeat;
-mod idle;
-mod throttle;
-mod wakatime;
+//! wakatime-focusd binary entry point.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,20 +7,17 @@ use std::time::Duration;
 use anyhow::Context;
 use anyhow::Result;
 use clap::Parser;
-use tracing::debug;
 use tracing::error;
 use tracing::info;
 use tracing::warn;
 use tracing_subscriber::EnvFilter;
 
-use crate::backend::Backend;
-use crate::backend::FocusEvent;
-use crate::config::Config;
-use crate::heartbeat::HeartbeatBuilder;
-use crate::idle::IdleMonitor;
-use crate::throttle::HeartbeatThrottle;
-use crate::throttle::ThrottleDecision;
-use crate::wakatime::WakaTimeClient;
+use wakatime_focusd::EventLoopOutcome;
+use wakatime_focusd::backend::Backend;
+use wakatime_focusd::backend::FocusSource;
+use wakatime_focusd::config::Config;
+use wakatime_focusd::idle::IdleMonitor;
+use wakatime_focusd::wakatime::WakaTimeClient;
 
 /// `WakaTime` focus daemon.
 ///
@@ -99,8 +85,8 @@ async fn main() -> Result<()> {
     info!("Using backend: {backend}");
 
     // Show diagnostics
-    for diag in crate::backend::diagnostics(backend) {
-        debug!("{}", diag);
+    for diag in wakatime_focusd::backend::diagnostics(backend) {
+        tracing::debug!("{}", diag);
     }
 
     info!("Configuration loaded (dry_run={})", config.dry_run);
@@ -133,9 +119,16 @@ fn init_logging(level: &str) -> Result<()> {
 async fn run_oneshot(backend: Backend, count: usize, print_events: bool) -> Result<()> {
     info!("Running in oneshot mode, capturing {} events", count);
 
-    let mut source = crate::backend::connect(backend).await?;
+    let source = wakatime_focusd::backend::connect(backend).await?;
+    run_oneshot_with_source(source, count, print_events).await
+}
 
-    // Capture events
+/// Run oneshot mode with an injected `FocusSource`.
+async fn run_oneshot_with_source(
+    mut source: Box<dyn FocusSource>,
+    count: usize,
+    print_events: bool,
+) -> Result<()> {
     let mut captured = 0;
     while captured < count {
         match tokio::time::timeout(Duration::from_secs(30), source.next_event()).await {
@@ -170,7 +163,6 @@ async fn run_oneshot(backend: Backend, count: usize, print_events: bool) -> Resu
 
 /// Run daemon event loop.
 async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Result<()> {
-    // Initialize components
     let wakatime_client =
         WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
 
@@ -179,116 +171,18 @@ async fn run_daemon(backend: Backend, config: Config, print_events: bool) -> Res
         .clone()
         .start_polling(Duration::from_secs(config.idle_check_interval_seconds));
 
-    let mut throttle = HeartbeatThrottle::new(config.min_entity_resend_seconds);
-    let heartbeat_builder = HeartbeatBuilder::from_config(&config);
-    let mut periodic_timer =
-        tokio::time::interval(Duration::from_secs(config.heartbeat_interval_seconds));
-    periodic_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
     info!("Daemon started, waiting for focus events...");
 
     loop {
-        let mut source = crate::backend::connect(backend).await?;
+        let source = wakatime_focusd::backend::connect(backend).await?;
+        let outcome =
+            wakatime_focusd::run_event_loop(source, &config, &wakatime_client, &idle_monitor, print_events).await;
 
-        loop {
-            tokio::select! {
-                // Handle focus events
-                event = source.next_event() => {
-                    match event {
-                        Ok(focus_event) => {
-                            handle_focus_event(
-                                &focus_event,
-                                &heartbeat_builder,
-                                &idle_monitor,
-                                &mut throttle,
-                                &wakatime_client,
-                                print_events,
-                            ).await;
-                        }
-                        Err(e) => {
-                            error!("Focus event error: {}", e);
-                            break; // Reconnect
-                        }
-                    }
-                }
-
-                // Periodic heartbeat check (in case no focus changes but time elapsed)
-                _ = periodic_timer.tick() => {
-                    if let Some(last_heartbeat) = throttle.last_heartbeat()
-                        && throttle.should_send(&last_heartbeat.entity) == ThrottleDecision::Send
-                    {
-                        if idle_monitor.is_idle() {
-                            debug!("Skipping periodic heartbeat: session is idle");
-                            continue;
-                        }
-
-                        let periodic_heartbeat =
-                            heartbeat_builder.build(last_heartbeat.source.clone());
-                        debug!(
-                            "Sending periodic heartbeat for: {}",
-                            periodic_heartbeat.entity.as_str()
-                        );
-                        match wakatime_client.send_heartbeat(&periodic_heartbeat).await {
-                            Ok(()) => throttle.record_sent(periodic_heartbeat),
-                            Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
-                        }
-                    }
-                }
+        match outcome {
+            EventLoopOutcome::SourceError(e) => {
+                error!("Focus event error: {}, reconnecting...", e);
             }
-        }
-    }
-}
-
-/// Handle a focus event.
-async fn handle_focus_event(
-    event: &FocusEvent,
-    heartbeat_builder: &HeartbeatBuilder,
-    idle_monitor: &IdleMonitor,
-    throttle: &mut HeartbeatThrottle,
-    wakatime_client: &WakaTimeClient,
-    print_events: bool,
-) {
-    // Print event if requested
-    if print_events {
-        println!(
-            "[FOCUS] | class={} title={:?} window_id={:?}",
-            event.app_class, event.title, event.window_id
-        );
-    }
-
-    // Skip empty focus (no focused window)
-    if event.is_empty() {
-        debug!("Ignoring empty focus event");
-        return;
-    }
-
-    // Check allowlist/denylist
-    if !heartbeat_builder.is_app_allowed(&event.app_class) {
-        debug!("App '{}' not allowed by filter", event.app_class);
-        return;
-    }
-
-    // Build heartbeat
-    let heartbeat = heartbeat_builder.build(event.clone());
-
-    // Check idle state
-    if idle_monitor.is_idle() {
-        debug!("Skipping heartbeat: session is idle");
-        return;
-    }
-
-    // Check throttle
-    match throttle.should_send(&heartbeat.entity) {
-        ThrottleDecision::Send => {
-            debug!("Sending heartbeat for: {}", heartbeat.entity.as_str());
-            if let Err(e) = wakatime_client.send_heartbeat(&heartbeat).await {
-                warn!("Failed to send heartbeat: {}", e);
-            } else {
-                throttle.record_sent(heartbeat);
-            }
-        }
-        ThrottleDecision::Skip => {
-            debug!("Throttled heartbeat for: {}", heartbeat.entity.as_str());
+            EventLoopOutcome::Finished => return Ok(()),
         }
     }
 }

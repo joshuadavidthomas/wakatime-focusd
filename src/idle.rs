@@ -103,6 +103,13 @@ impl IdleMonitor {
         self.enabled.store(false, Ordering::Relaxed);
     }
 
+    /// Directly set the idle hint value.
+    ///
+    /// Useful for testing without a real D-Bus connection.
+    pub fn set_idle(&self, idle: bool) {
+        self.idle_hint.store(idle, Ordering::Relaxed);
+    }
+
     /// Start background polling task.
     ///
     /// Polls idle state at the specified interval and updates the cache.
