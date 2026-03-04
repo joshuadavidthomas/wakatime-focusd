@@ -2,17 +2,30 @@
 
 A systemd user daemon that tracks focused desktop applications and sends heartbeats to [WakaTime](https://wakatime.com).
 
-## Features
+## Supported Desktops
 
-The daemon monitors your desktop's focused window and sends heartbeats to WakaTime whenever focus changes or after a configurable timeout (default: 2 minutes). Window class names become tracked entity, allowing WakaTime to show which applications you spend time in.
+wakatime-focusd auto-detects your desktop environment. No manual configuration is needed in most cases.
+
+| Desktop | How it works |
+|---------|-------------|
+| **Hyprland** | IPC socket events |
+| **Sway** | IPC socket events (Wayland + XWayland windows) |
+| **Niri** | JSON IPC socket events |
+| **GNOME Shell** | D-Bus (`org.gnome.Shell.Introspect`) |
+| **KDE Plasma** | KWin script + D-Bus |
+| **X11** (any WM) | `_NET_ACTIVE_WINDOW` — works with i3, bspwm, awesome, openbox, etc. |
+
+Auto-detection checks Wayland-native compositors first, then falls back to X11.
+
+## How It Works
+
+The daemon monitors your desktop's focused window and sends heartbeats to WakaTime whenever focus changes or after a configurable timeout (default: 2 minutes). Window class names become the tracked entity, allowing WakaTime to show which applications you spend time in.
 
 Heartbeats are gated by systemd-logind's `IdleHint`, so no activity is recorded when your session is idle or locked. The daemon runs as a systemd user service with automatic restart on failure.
 
-Currently supports Hyprland via its IPC socket. Additional backends are planned.
-
 ## Requirements
 
-- [wakatime-cli](https://wakatime.com/terminal) installed and configured with API key
+- [wakatime-cli](https://wakatime.com/terminal) installed and configured with your API key
 - systemd (for user service and idle detection)
 - Rust toolchain (for building from source)
 
@@ -36,11 +49,26 @@ systemctl --user daemon-reload
 systemctl --user enable --now wakatime-focusd.service
 ```
 
+> **Important:** Your desktop environment's variables must be visible to systemd user services. Most Wayland compositors and display managers handle this, but if the service can't detect your backend, add this to your compositor's startup:
+>
+> ```bash
+> dbus-update-activation-environment --systemd \
+>   WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_RUNTIME_DIR \
+>   DISPLAY SWAYSOCK HYPRLAND_INSTANCE_SIGNATURE NIRI_SOCKET
+> ```
+>
+> Only the variables relevant to your setup matter — you don't need all of them.
+
 ## Configuration
 
 Create `~/.config/wakatime-focusd/config.toml`:
 
 ```toml
+# Backend for focus detection (default: "auto")
+# Options: auto, hyprland, sway, gnome, kde, niri, x11
+# "auto" detects your desktop environment automatically.
+backend = "auto"
+
 # Heartbeat interval in seconds (default: 120)
 heartbeat_interval_seconds = 120
 
@@ -120,23 +148,38 @@ journalctl --user -u wakatime-focusd -f
 systemctl --user stop wakatime-focusd
 ```
 
+### CLI Options
+
+```
+wakatime-focusd [OPTIONS]
+
+Options:
+  -c, --config <PATH>       Path to TOML config file
+  -b, --backend <BACKEND>   Backend override [default: auto]
+                             [values: auto, hyprland, sway, gnome, kde, niri, x11]
+      --dry-run              Log commands instead of sending heartbeats
+      --log-level <LEVEL>    Log level [default: info]
+                             [values: trace, debug, info, warn, error]
+      --print-events         Print focus events to stdout
+      --oneshot              Capture N events then exit (for debugging)
+      --oneshot-count <N>    Number of events in oneshot mode [default: 5]
+```
+
 ## Troubleshooting
 
 ### Service fails to start
 
-1. Check if systemd environment has required variables:
+1. Check that your desktop's environment variables are visible to systemd:
    ```bash
-   systemctl --user show-environment | grep XDG_RUNTIME_DIR
+   systemctl --user show-environment
    ```
+   Look for the variable your backend needs (e.g., `SWAYSOCK` for Sway, `DISPLAY` for X11, `HYPRLAND_INSTANCE_SIGNATURE` for Hyprland).
 
-2. Verify Hyprland socket exists:
-   ```bash
-   ls -la $XDG_RUNTIME_DIR/hypr/*/.socket2.sock 2>/dev/null
-   ```
+2. If variables are missing, export them to systemd from your compositor startup. See the note in [Installation](#installing-the-systemd-service).
 
-3. If running multiple Hyprland instances, verify which instance is active:
+3. Test detection manually:
    ```bash
-   systemctl --user show-environment | grep HYPRLAND_INSTANCE_SIGNATURE
+   wakatime-focusd --oneshot --log-level debug
    ```
 
 ### wakatime-cli not found
@@ -156,16 +199,10 @@ Set `wakatime_cli_path` in config if it's in a non-standard location.
 
 ### No heartbeats being sent
 
-1. Check if dry_run is enabled
-2. Check if app is in denylist or not in allowlist
+1. Check if `dry_run` is enabled in your config
+2. Check if the app is in `app_denylist` or not in `app_allowlist`
 3. Check idle state: `loginctl show-session --property=IdleHint`
 4. Check logs: `journalctl --user -u wakatime-focusd -f`
-
-## Roadmap
-
-- [ ] Additional backends (wlr-foreign-toplevel, X11, KDE, GNOME)
-- [ ] Configurable allowlist/denylist patterns (regex)
-- [ ] Metrics/stats endpoint
 
 ## License
 

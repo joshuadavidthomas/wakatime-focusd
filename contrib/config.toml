@@ -1,6 +1,11 @@
 # wakatime-focusd configuration
 # Location: ~/.config/wakatime-focusd/config.toml
 
+# Backend for focus detection (default: "auto")
+# Options: auto, hyprland, sway, gnome, kde, niri, x11
+# "auto" detects your desktop environment automatically.
+# backend = "auto"
+
 # Heartbeat interval in seconds (default: 120)
 # How often to send heartbeats for the same focused app.
 heartbeat_interval_seconds = 120
