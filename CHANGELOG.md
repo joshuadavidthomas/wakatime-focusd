@@ -25,6 +25,7 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 - Sway backend — tracks focused windows via Sway's IPC socket, with support for both native Wayland (`app_id`) and XWayland (`window_properties.class`) windows
 - X11 backend — tracks focused windows on any EWMH-compliant X11 window manager (i3, bspwm, awesome, openbox, etc.) via `_NET_ACTIVE_WINDOW`
 - GNOME Shell backend — tracks focused windows via the `org.gnome.Shell.Introspect` D-Bus interface
+- KDE Plasma backend — tracks focused windows via a KWin script that monitors `workspace.windowActivated` and reports back over D-Bus
 
 ## [0.1.3]
 

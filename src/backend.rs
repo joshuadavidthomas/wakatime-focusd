@@ -5,6 +5,7 @@
 
 mod gnome;
 mod hyprland;
+mod kde;
 mod sway;
 mod x11;
 
@@ -15,6 +16,7 @@ use async_trait::async_trait;
 use clap::ValueEnum;
 pub use gnome::GnomeSource;
 pub use hyprland::HyprlandSource;
+pub use kde::KdeSource;
 use serde::Deserialize;
 use serde::Serialize;
 pub use sway::SwaySource;
@@ -167,7 +169,11 @@ pub async fn connect(backend: Backend) -> Result<Box<dyn FocusSource>, FocusErro
             let source = GnomeSource::connect().await?;
             Ok(Box::new(source))
         }
-        Backend::Kde | Backend::Niri => Err(FocusError::BackendNotImplemented(resolved)),
+        Backend::Kde => {
+            let source = KdeSource::connect().await?;
+            Ok(Box::new(source))
+        }
+        Backend::Niri => Err(FocusError::BackendNotImplemented(resolved)),
         Backend::Auto => unreachable!("Auto should have been resolved"),
     }
 }
@@ -189,8 +195,9 @@ pub fn diagnostics(backend: Backend) -> Vec<String> {
         Backend::Hyprland => HyprlandSource::get_diagnostics(),
         Backend::Sway => SwaySource::get_diagnostics(),
         Backend::Gnome => GnomeSource::get_diagnostics(),
+        Backend::Kde => KdeSource::get_diagnostics(),
         Backend::X11 => X11Source::get_diagnostics(),
-        other => vec![format!("Backend {other} is not yet implemented")],
+        other @ Backend::Niri => vec![format!("Backend {other} is not yet implemented")],
     }
 }
 
