@@ -148,7 +148,6 @@ idle_check_interval_seconds = 10
 dry_run = false
 ```
 
-See `contrib/config.toml` for a fully documented example.
 
 ## Usage
 
