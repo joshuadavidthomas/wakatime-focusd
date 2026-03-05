@@ -1,0 +1,51 @@
+```console
+$ wakatime-focusd --help
+Systemd user daemon for WakaTime app heartbeats
+
+Usage: wakatime-focusd [OPTIONS] [COMMAND]
+
+Commands:
+  config   Manage configuration
+  service  Manage the systemd user service
+  oneshot  Capture a few focus events and exit (for debugging)
+  update   Update to the latest release
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+      --dry-run
+          Enable dry-run mode (don't actually send heartbeats)
+
+      --log-level <LOG_LEVEL>
+          Log level (trace, debug, info, warn, error)
+          
+          [default: info]
+
+      --print-events
+          Print normalized focus events to stdout
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
+```

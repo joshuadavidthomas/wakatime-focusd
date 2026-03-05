@@ -38,6 +38,7 @@ libc = "0.2"
 serial_test = "3"
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "test-util", "sync"] }
+trycmd = "1"
 wayland-protocols = { version = "0.32", features = ["staging", "server"] }
 wayland-protocols-wlr = { version = "0.3", features = ["server"] }
 wayland-server = "0.31"
