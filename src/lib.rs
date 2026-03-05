@@ -1,15 +1,17 @@
 //! wakatime-focusd - Systemd user daemon for `WakaTime` app heartbeats.
 //!
-//! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
-//! using wakatime-cli.
+//! Tracks currently focused desktop application and sends heartbeats to
+//! `WakaTime` via the API directly (default) or using wakatime-cli (legacy,
+//! requires the `cli-sender` feature).
 
+pub mod api;
+pub mod api_key;
 pub mod backend;
 pub mod config;
 pub mod domain;
 pub mod heartbeat;
 pub mod idle;
 pub mod throttle;
-pub mod wakatime;
 
 use std::time::Duration;
 
@@ -46,7 +48,7 @@ pub enum EventLoopOutcome {
 pub async fn run_event_loop(
     mut source: Box<dyn FocusSource>,
     config: &Config,
-    sender: &(dyn wakatime::HeartbeatSender + Sync),
+    sender: &(dyn api::HeartbeatSender + Sync),
     idle_monitor: &IdleMonitor,
     shutdown: &CancellationToken,
     reload: &Notify,
@@ -61,12 +63,18 @@ pub async fn run_event_loop(
     loop {
         tokio::select! {
             () = shutdown.cancelled() => {
-                info!("Shutdown signal received, exiting event loop");
+                info!("Shutdown signal received, flushing buffered heartbeats");
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer on shutdown: {e}");
+                }
                 return EventLoopOutcome::Shutdown;
             }
 
             () = reload.notified() => {
-                info!("Reload signal received, exiting event loop for config reload");
+                info!("Reload signal received, flushing buffered heartbeats");
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer before reload: {e}");
+                }
                 return EventLoopOutcome::Reload;
             }
 
@@ -83,6 +91,9 @@ pub async fn run_event_loop(
                         ).await;
                     }
                     Err(e) => {
+                        if let Err(flush_err) = sender.flush().await {
+                            warn!("Failed to flush heartbeat buffer on source error: {flush_err}");
+                        }
                         return EventLoopOutcome::SourceError(e);
                     }
                 }
@@ -94,20 +105,24 @@ pub async fn run_event_loop(
                 {
                     if idle_monitor.is_idle() {
                         debug!("Skipping periodic heartbeat: session is idle");
-                        continue;
+                    } else {
+                        // Re-send the same heartbeat rather than rebuilding from
+                        // the source event — entity and category haven't changed.
+                        let periodic_heartbeat = last_heartbeat.clone();
+                        debug!(
+                            "Sending periodic heartbeat for: {}",
+                            periodic_heartbeat.entity
+                        );
+                        match sender.send_heartbeat(&periodic_heartbeat).await {
+                            Ok(()) => throttle.record_sent(periodic_heartbeat),
+                            Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
+                        }
                     }
+                }
 
-                    // Re-send the same heartbeat rather than rebuilding from
-                    // the source event — entity and category haven't changed.
-                    let periodic_heartbeat = last_heartbeat.clone();
-                    debug!(
-                        "Sending periodic heartbeat for: {}",
-                        periodic_heartbeat.entity
-                    );
-                    match sender.send_heartbeat(&periodic_heartbeat).await {
-                        Ok(()) => throttle.record_sent(periodic_heartbeat),
-                        Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
-                    }
+                // Flush any buffered heartbeats (no-op for non-batching senders)
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer: {e}");
                 }
             }
         }
@@ -120,7 +135,7 @@ async fn handle_focus_event(
     heartbeat_builder: &HeartbeatBuilder,
     idle_monitor: &IdleMonitor,
     throttle: &mut HeartbeatThrottle,
-    sender: &(dyn wakatime::HeartbeatSender + Sync),
+    sender: &(dyn api::HeartbeatSender + Sync),
     print_events: bool,
 ) {
     if print_events {

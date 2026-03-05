@@ -68,12 +68,12 @@ pub struct Config {
     /// Always excluded even if in allowlist.
     pub app_denylist: Option<Vec<String>>,
 
-    /// Path to wakatime-cli binary.
-    /// If unset, searches PATH and ~/.wakatime/wakatime-cli*.
-    pub wakatime_cli_path: Option<PathBuf>,
+    /// `WakaTime` API base URL (default: <https://api.wakatime.com/api>).
+    /// Also read from `api_url` in `~/.wakatime.cfg` if not set here.
+    pub api_url: Option<String>,
 
-    /// Path to wakatime config file.
-    /// Forwarded to wakatime-cli --config.
+    /// Path to wakatime config file (`~/.wakatime.cfg`).
+    /// Used to read the API key and `api_url`.
     pub wakatime_config_path: Option<PathBuf>,
 
     /// Dry run mode: log commands instead of executing.
@@ -95,7 +95,7 @@ impl Default for Config {
             category_rules: Vec::new(),
             app_allowlist: None,
             app_denylist: None,
-            wakatime_cli_path: None,
+            api_url: None,
             wakatime_config_path: None,
             dry_run: false,
             idle_check_interval_seconds: 10,
@@ -166,12 +166,15 @@ default_category = "coding"
 # Optional: Never track these app classes
 # app_denylist = ["slack", "discord", "spotify"]
 
-# Path to wakatime-cli binary (optional)
-# If not set, searches PATH and ~/.wakatime/
-# wakatime_cli_path = "/usr/bin/wakatime-cli"
+# WakaTime API base URL (optional)
+# Default: https://api.wakatime.com/api
+# Also read from api_url in ~/.wakatime.cfg if not set here.
+# For self-hosted Wakapi: use your instance URL (e.g. "https://wakapi.example.com/api")
+# api_url = "https://api.wakatime.com/api"
 
-# Path to wakatime config file (optional)
-# Forwarded to wakatime-cli --config
+# Path to wakatime config file (optional, default: ~/.wakatime.cfg)
+# Used to read the API key and api_url.
+# The API key can also be set via the $WAKATIME_API_KEY environment variable.
 # wakatime_config_path = "/home/user/.wakatime.cfg"
 
 # Idle check interval in seconds (default: 10)
