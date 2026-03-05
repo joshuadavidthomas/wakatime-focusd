@@ -1,6 +1,8 @@
 //! Domain types for `WakaTime` heartbeats.
 
 use std::fmt;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -97,16 +99,29 @@ pub struct Heartbeat {
 
     /// The source focus event (for provenance).
     pub source: FocusEvent,
+
+    /// Unix timestamp (seconds) when the event occurred.
+    pub time: f64,
 }
 
 impl Heartbeat {
-    /// Create a new heartbeat.
+    /// Create a new heartbeat, capturing the current time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system clock is before the UNIX epoch.
     #[must_use]
     pub fn new(entity: Entity, category: Category, source: FocusEvent) -> Self {
+        let time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before UNIX epoch")
+            .as_secs_f64();
+
         Self {
             entity,
             category,
             source,
+            time,
         }
     }
 }

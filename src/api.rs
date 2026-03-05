@@ -9,14 +9,15 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
 use anyhow::Context;
 use anyhow::Result;
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use futures_util::future::BoxFuture;
 use reqwest::Client;
 use reqwest::StatusCode;
+use reqwest::header::AUTHORIZATION;
 use serde::Deserialize;
 use serde::Serialize;
 use tracing::debug;
@@ -54,7 +55,21 @@ const DEFAULT_API_URL: &str = "https://api.wakatime.com/api";
 const ERROR_LOG_RATE_LIMIT: u32 = 10;
 
 /// Plugin identifier sent with each heartbeat.
-const PLUGIN_ID: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
+/// `WakaTime` User-Agent format: `(OS) plugin/version`.
+fn user_agent() -> String {
+    let os = std::env::consts::OS;
+    let os = match os {
+        "macos" => "Darwin",
+        "linux" => "Linux",
+        "windows" => "Windows",
+        other => other,
+    };
+    format!(
+        "({os}) {}/{}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    )
+}
 
 /// Flush the buffer when it reaches this many heartbeats.
 const BATCH_THRESHOLD: usize = 10;
@@ -79,23 +94,27 @@ struct HeartbeatPayload {
     entity_type: String,
     category: String,
     time: f64,
-    plugin: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    machine_name_id: Option<String>,
 }
 
 impl HeartbeatPayload {
-    fn from_heartbeat(heartbeat: &Heartbeat) -> Result<Self> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .context("System time before UNIX epoch")?;
-
-        Ok(Self {
+    fn from_heartbeat(heartbeat: &Heartbeat) -> Self {
+        Self {
             entity: heartbeat.entity.as_str().to_string(),
             entity_type: "app".to_string(),
             category: heartbeat.category.as_str().to_string(),
-            time: now.as_secs_f64(),
-            plugin: PLUGIN_ID.to_string(),
-        })
+            time: heartbeat.time,
+            machine_name_id: hostname().ok(),
+        }
     }
+}
+
+/// Get the machine hostname.
+fn hostname() -> Result<String> {
+    let name = gethostname::gethostname();
+    name.into_string()
+        .map_err(|_| anyhow::anyhow!("hostname is not valid UTF-8"))
 }
 
 /// Direct `WakaTime` API sender with heartbeat batching and offline queue.
@@ -148,7 +167,7 @@ impl ApiSender {
         let bulk_url = format!("{base_url}/v1/users/current/heartbeats.bulk");
 
         let client = Client::builder()
-            .user_agent(PLUGIN_ID)
+            .user_agent(user_agent())
             .build()
             .context("Failed to build HTTP client")?;
 
@@ -190,7 +209,7 @@ impl ApiSender {
 
     /// Buffer a heartbeat. Triggers a flush if the buffer reaches the threshold.
     async fn buffer_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        let payload = HeartbeatPayload::from_heartbeat(heartbeat)?;
+        let payload = HeartbeatPayload::from_heartbeat(heartbeat);
 
         if self.dry_run {
             info!(
@@ -264,12 +283,20 @@ impl ApiSender {
         Ok(())
     }
 
+    /// Build the `Authorization` header value.
+    ///
+    /// Wakapi expects `Basic base64(api_key)` — the raw key base64-encoded
+    /// without the `:` separator that standard HTTP Basic Auth would append.
+    fn auth_header(&self) -> String {
+        format!("Basic {}", BASE64.encode(&self.api_key))
+    }
+
     /// POST a single heartbeat.
     async fn post_single(&self, payload: &HeartbeatPayload) -> Result<()> {
         let response = self
             .client
             .post(&self.heartbeat_url)
-            .basic_auth(&self.api_key, None::<&str>)
+            .header(AUTHORIZATION, self.auth_header())
             .json(payload)
             .send()
             .await
@@ -285,7 +312,7 @@ impl ApiSender {
         let response = self
             .client
             .post(&self.bulk_url)
-            .basic_auth(&self.api_key, None::<&str>)
+            .header(AUTHORIZATION, self.auth_header())
             .json(payloads)
             .send()
             .await
@@ -488,33 +515,34 @@ impl HeartbeatSender for ApiSender {
 mod tests {
     use super::*;
 
+    fn test_payload(entity: &str, category: &str, time: f64) -> HeartbeatPayload {
+        HeartbeatPayload {
+            entity: entity.to_string(),
+            entity_type: "app".to_string(),
+            category: category.to_string(),
+            time,
+            machine_name_id: Some("test-machine".to_string()),
+        }
+    }
+
     #[test]
     fn test_heartbeat_payload_serialization() {
-        let payload = HeartbeatPayload {
-            entity: "firefox".to_string(),
-            entity_type: "app".to_string(),
-            category: "browsing".to_string(),
-            time: 1_700_000_000.123,
-            plugin: "wakatime-focusd/0.3.0".to_string(),
-        };
+        let payload = test_payload("firefox", "browsing", 1_700_000_000.123);
 
         let json = serde_json::to_value(&payload).unwrap();
         assert_eq!(json["entity"], "firefox");
         assert_eq!(json["type"], "app");
         assert_eq!(json["category"], "browsing");
-        assert_eq!(json["plugin"], "wakatime-focusd/0.3.0");
+        assert_eq!(json["machine_name_id"], "test-machine");
+        assert!(json.get("user_agent").is_none());
+        assert!(json.get("operating_system").is_none());
         assert!(json["time"].is_f64());
+        assert!(json.get("plugin").is_none());
     }
 
     #[test]
     fn test_heartbeat_payload_roundtrip() {
-        let payload = HeartbeatPayload {
-            entity: "firefox".to_string(),
-            entity_type: "app".to_string(),
-            category: "browsing".to_string(),
-            time: 1_700_000_000.123,
-            plugin: PLUGIN_ID.to_string(),
-        };
+        let payload = test_payload("firefox", "browsing", 1_700_000_000.123);
 
         let json = serde_json::to_string(&payload).unwrap();
         let deserialized: HeartbeatPayload = serde_json::from_str(&json).unwrap();
@@ -526,20 +554,8 @@ mod tests {
     #[test]
     fn test_bulk_payload_serialization() {
         let payloads = vec![
-            HeartbeatPayload {
-                entity: "firefox".to_string(),
-                entity_type: "app".to_string(),
-                category: "browsing".to_string(),
-                time: 1_700_000_000.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
-            HeartbeatPayload {
-                entity: "code".to_string(),
-                entity_type: "app".to_string(),
-                category: "coding".to_string(),
-                time: 1_700_000_001.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
+            test_payload("firefox", "browsing", 1_700_000_000.0),
+            test_payload("code", "coding", 1_700_000_001.0),
         ];
 
         let json = serde_json::to_value(&payloads).unwrap();
@@ -552,20 +568,8 @@ mod tests {
     #[test]
     fn test_bulk_payload_roundtrip() {
         let payloads = vec![
-            HeartbeatPayload {
-                entity: "firefox".to_string(),
-                entity_type: "app".to_string(),
-                category: "browsing".to_string(),
-                time: 1_700_000_000.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
-            HeartbeatPayload {
-                entity: "code".to_string(),
-                entity_type: "app".to_string(),
-                category: "coding".to_string(),
-                time: 1_700_000_001.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
+            test_payload("firefox", "browsing", 1_700_000_000.0),
+            test_payload("code", "coding", 1_700_000_001.0),
         ];
 
         let json_line = serde_json::to_string(&payloads).unwrap();
@@ -667,20 +671,8 @@ mod tests {
         };
 
         let payloads = vec![
-            HeartbeatPayload {
-                entity: "firefox".to_string(),
-                entity_type: "app".to_string(),
-                category: "browsing".to_string(),
-                time: 1_700_000_000.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
-            HeartbeatPayload {
-                entity: "code".to_string(),
-                entity_type: "app".to_string(),
-                category: "coding".to_string(),
-                time: 1_700_000_001.0,
-                plugin: PLUGIN_ID.to_string(),
-            },
+            test_payload("firefox", "browsing", 1_700_000_000.0),
+            test_payload("code", "coding", 1_700_000_001.0),
         ];
 
         // Persist
@@ -715,20 +707,8 @@ mod tests {
         };
 
         // Persist two separate batches
-        sender.persist_to_queue(&[HeartbeatPayload {
-            entity: "batch1".to_string(),
-            entity_type: "app".to_string(),
-            category: "coding".to_string(),
-            time: 1.0,
-            plugin: PLUGIN_ID.to_string(),
-        }]);
-        sender.persist_to_queue(&[HeartbeatPayload {
-            entity: "batch2".to_string(),
-            entity_type: "app".to_string(),
-            category: "coding".to_string(),
-            time: 2.0,
-            plugin: PLUGIN_ID.to_string(),
-        }]);
+        sender.persist_to_queue(&[test_payload("batch1", "coding", 1.0)]);
+        sender.persist_to_queue(&[test_payload("batch2", "coding", 2.0)]);
 
         let content = std::fs::read_to_string(&queue_path).unwrap();
         let lines: Vec<&str> = content.lines().collect();
@@ -762,13 +742,7 @@ mod tests {
         };
 
         // This should be dropped because the file is already at max size
-        sender.persist_to_queue(&[HeartbeatPayload {
-            entity: "should-be-dropped".to_string(),
-            entity_type: "app".to_string(),
-            category: "coding".to_string(),
-            time: 1.0,
-            plugin: PLUGIN_ID.to_string(),
-        }]);
+        sender.persist_to_queue(&[test_payload("should-be-dropped", "coding", 1.0)]);
 
         // File should still just contain the original content
         let content = std::fs::read_to_string(&queue_path).unwrap();
@@ -789,12 +763,6 @@ mod tests {
         };
 
         // Should not panic
-        sender.persist_to_queue(&[HeartbeatPayload {
-            entity: "test".to_string(),
-            entity_type: "app".to_string(),
-            category: "coding".to_string(),
-            time: 1.0,
-            plugin: PLUGIN_ID.to_string(),
-        }]);
+        sender.persist_to_queue(&[test_payload("test", "coding", 1.0)]);
     }
 }

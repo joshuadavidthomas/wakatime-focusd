@@ -18,6 +18,12 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Fixed
+
+- WakaTime API authentication (was sending malformed credentials, causing 401 errors).
+- Heartbeat timestamps now reflect when the focus event occurred, not when the heartbeat was sent to the API.
+- Heartbeat payload and headers now follow the WakaTime API spec (`User-Agent` format, `machine_name_id` field name, no extraneous body fields).
+
 ## [0.4.0]
 
 ### Added
