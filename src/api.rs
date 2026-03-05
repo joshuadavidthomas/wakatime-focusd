@@ -1,6 +1,6 @@
-//! Direct `WakaTime` API heartbeat sender.
+//! `WakaTime` API heartbeat sender.
 //!
-//! Sends heartbeats via HTTP POST instead of spawning wakatime-cli.
+//! Sends heartbeats directly to the `WakaTime` API via HTTP POST.
 //! Heartbeats are buffered and sent in batches via the bulk endpoint.
 //! Failed sends are persisted to an offline queue and replayed later.
 
@@ -28,7 +28,24 @@ use tracing::warn;
 use crate::api_key;
 use crate::config::Config;
 use crate::domain::Heartbeat;
-use crate::wakatime::HeartbeatSender;
+
+/// Trait for sending heartbeats to `WakaTime`.
+pub trait HeartbeatSender: Send {
+    /// Send a heartbeat. Returns `Ok(())` on success.
+    ///
+    /// Implementations may buffer the heartbeat for later delivery (see
+    /// [`flush`](Self::flush)).
+    fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>>;
+
+    /// Flush any buffered heartbeats.
+    ///
+    /// Called by the event loop on periodic ticks and before shutdown/reload.
+    /// The default implementation is a no-op (for senders that deliver
+    /// immediately, e.g., test mocks).
+    fn flush(&self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
 
 /// Default `WakaTime` API base URL.
 const DEFAULT_API_URL: &str = "https://api.wakatime.com/api";

@@ -21,7 +21,7 @@ use wakatime_focusd::config::Config;
 use wakatime_focusd::domain::Heartbeat;
 use wakatime_focusd::idle::IdleMonitor;
 use wakatime_focusd::run_event_loop;
-use wakatime_focusd::wakatime::HeartbeatSender;
+use wakatime_focusd::api::HeartbeatSender;
 
 /// A `FocusSource` that replays a scripted sequence of events.
 ///

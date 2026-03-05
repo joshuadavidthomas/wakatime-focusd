@@ -1,7 +1,8 @@
 //! wakatime-focusd - Systemd user daemon for `WakaTime` app heartbeats.
 //!
-//! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
-//! via the API directly or using wakatime-cli.
+//! Tracks currently focused desktop application and sends heartbeats to
+//! `WakaTime` via the API directly (default) or using wakatime-cli (legacy,
+//! requires the `cli-sender` feature).
 
 pub mod api;
 pub mod api_key;
@@ -11,7 +12,6 @@ pub mod domain;
 pub mod heartbeat;
 pub mod idle;
 pub mod throttle;
-pub mod wakatime;
 
 use std::time::Duration;
 
@@ -48,7 +48,7 @@ pub enum EventLoopOutcome {
 pub async fn run_event_loop(
     mut source: Box<dyn FocusSource>,
     config: &Config,
-    sender: &(dyn wakatime::HeartbeatSender + Sync),
+    sender: &(dyn api::HeartbeatSender + Sync),
     idle_monitor: &IdleMonitor,
     shutdown: &CancellationToken,
     reload: &Notify,
@@ -135,7 +135,7 @@ async fn handle_focus_event(
     heartbeat_builder: &HeartbeatBuilder,
     idle_monitor: &IdleMonitor,
     throttle: &mut HeartbeatThrottle,
-    sender: &(dyn wakatime::HeartbeatSender + Sync),
+    sender: &(dyn api::HeartbeatSender + Sync),
     print_events: bool,
 ) {
     if print_events {

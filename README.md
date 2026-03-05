@@ -23,11 +23,13 @@ Auto-detection checks Wayland-native compositors first (including COSMIC via `XD
 
 The daemon monitors your desktop's focused window and sends heartbeats to WakaTime whenever focus changes or after a configurable timeout (default: 2 minutes). Window class names become the tracked entity, allowing WakaTime to show which applications you spend time in.
 
+Heartbeats are sent directly to the WakaTime API (or a compatible server like [Wakapi](https://github.com/muety/wakapi)), batched for efficiency, and queued to disk if the network is unavailable. No external tools are required — just an API key.
+
 Heartbeats are gated by systemd-logind's `IdleHint`, so no activity is recorded when your session is idle or locked. The daemon runs as a systemd user service with automatic restart on failure.
 
 ## Requirements
 
-- [wakatime-cli](https://wakatime.com/terminal) installed and configured with your API key
+- A [WakaTime](https://wakatime.com) API key in `~/.wakatime.cfg` or the `$WAKATIME_API_KEY` environment variable
 - systemd (for user service and idle detection)
 - Rust toolchain (for building from source)
 
@@ -192,12 +194,15 @@ default_category = "coding"
 # Optional: Never track these app classes
 # app_denylist = ["slack", "discord", "spotify"]
 
-# Path to wakatime-cli binary (optional)
-# If not set, searches PATH and ~/.wakatime/
-# wakatime_cli_path = "/usr/bin/wakatime-cli"
+# WakaTime API base URL (optional)
+# Default: https://api.wakatime.com/api
+# Also read from api_url in ~/.wakatime.cfg if not set here.
+# For self-hosted Wakapi: use your instance URL (e.g. "https://wakapi.example.com/api")
+# api_url = "https://api.wakatime.com/api"
 
-# Path to wakatime config file (optional)
-# Forwarded to wakatime-cli --config
+# Path to wakatime config file (optional, default: ~/.wakatime.cfg)
+# Used to read the API key and api_url.
+# The API key can also be set via the $WAKATIME_API_KEY environment variable.
 # wakatime_config_path = "/home/user/.wakatime.cfg"
 
 # Idle check interval in seconds (default: 10)
@@ -645,7 +650,18 @@ Options:
    wakatime-focusd oneshot --log-level debug
    ```
 
-### wakatime-cli not found
+### API key not found
+
+The daemon reads your API key from (in priority order):
+
+1. `$WAKATIME_API_KEY` environment variable
+2. `api_key` in `~/.wakatime.cfg` (under the `[settings]` section)
+
+If you use a self-hosted [Wakapi](https://github.com/muety/wakapi) instance, set `api_url` in `~/.wakatime.cfg` or in the daemon config.
+
+### wakatime-cli not found (legacy sender only)
+
+This only applies if you've set `sender = "cli"` in your config (the default `sender = "api"` sends heartbeats directly and does not need wakatime-cli).
 
 Ensure `wakatime-cli` is installed:
 ```bash
@@ -666,6 +682,7 @@ Set `wakatime_cli_path` in config if it's in a non-standard location.
 2. Check if the app is in `app_denylist` or not in `app_allowlist`
 3. Check idle state: `loginctl show-session --property=IdleHint`
 4. Check logs: `journalctl --user -u wakatime-focusd -f`
+5. Check your API key is valid: `curl -s -H "Authorization: Basic $(echo -n YOUR_API_KEY | base64)" https://api.wakatime.com/api/v1/users/current`
 
 ## License
 

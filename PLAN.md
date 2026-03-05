@@ -105,10 +105,11 @@ Bypass wakatime-cli entirely and POST heartbeats to the WakaTime API directly. T
 - [ ] **Drain on reconnect** — after a successful flush, check for queued batches and replay them. Process oldest first, respect rate limits.
 - [ ] **Bound the queue** — cap the queue file size (e.g., 10MB / ~50k heartbeats) to prevent unbounded disk growth. Drop oldest entries when full.
 
-#### Phase 5: Cleanup
+#### Phase 5: Remove CLI sender
 
-- [ ] **Deprecate CLI sender** — mark `sender = "cli"` as deprecated in docs/config template. Keep it functional but recommend migration.
-- [ ] **Remove `which` dependency** — only needed for wakatime-cli discovery. Can be made optional behind a feature flag or removed once CLI sender is fully deprecated.
+- [ ] **Remove `WakaTimeClient` and `wakatime.rs`** — the CLI sender is gone. `HeartbeatSender` trait moves to `api.rs`.
+- [ ] **Remove `which` dependency** — no longer needed.
+- [ ] **Remove `SenderBackend` enum, `sender` and `wakatime_cli_path` config fields** — sender is always the direct API.
 - [ ] **Update README** — installation no longer requires wakatime-cli. Just needs an API key in `~/.wakatime.cfg` or `$WAKATIME_API_KEY`.
 
 ### Tier 2 — Valuable additions
