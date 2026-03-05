@@ -659,23 +659,6 @@ The daemon reads your API key from (in priority order):
 
 If you use a self-hosted [Wakapi](https://github.com/muety/wakapi) instance, set `api_url` in `~/.wakatime.cfg` or in the daemon config.
 
-### wakatime-cli not found (legacy sender only)
-
-This only applies if you've set `sender = "cli"` in your config (the default `sender = "api"` sends heartbeats directly and does not need wakatime-cli).
-
-Ensure `wakatime-cli` is installed:
-```bash
-# Check if it's in PATH
-which wakatime-cli
-
-# Or install it
-pip install wakatime
-
-# Or download from https://wakatime.com/terminal
-```
-
-Set `wakatime_cli_path` in config if it's in a non-standard location.
-
 ### No heartbeats being sent
 
 1. Check if `dry_run` is enabled in your config
