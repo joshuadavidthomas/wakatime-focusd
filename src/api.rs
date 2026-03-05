@@ -6,9 +6,9 @@
 
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
-use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -342,7 +342,10 @@ impl ApiSender {
     /// exceeds [`QUEUE_MAX_SIZE`] to prevent unbounded disk growth.
     fn persist_to_queue(&self, payloads: &[HeartbeatPayload]) {
         let Some(ref queue_path) = self.queue_path else {
-            warn!("No offline queue path available, dropping {} heartbeat(s)", payloads.len());
+            warn!(
+                "No offline queue path available, dropping {} heartbeat(s)",
+                payloads.len()
+            );
             return;
         };
 
@@ -383,10 +386,7 @@ impl ApiSender {
                 if let Err(e) = writeln!(file, "{line}") {
                     error!("Failed to write to offline queue: {e}");
                 } else {
-                    info!(
-                        "Queued {} heartbeat(s) to offline queue",
-                        payloads.len()
-                    );
+                    info!("Queued {} heartbeat(s) to offline queue", payloads.len());
                 }
             }
             Err(e) => error!("Failed to open offline queue: {e}"),
@@ -457,14 +457,11 @@ impl ApiSender {
             }
         } else {
             // Rewrite with remaining batches
-            let remaining = lines[drained..].iter().fold(
-                String::new(),
-                |mut acc, l| {
-                    acc.push_str(l);
-                    acc.push('\n');
-                    acc
-                },
-            );
+            let remaining = lines[drained..].iter().fold(String::new(), |mut acc, l| {
+                acc.push_str(l);
+                acc.push('\n');
+                acc
+            });
             if let Err(e) = std::fs::write(queue_path, remaining) {
                 error!("Failed to rewrite offline queue: {e}");
             } else {

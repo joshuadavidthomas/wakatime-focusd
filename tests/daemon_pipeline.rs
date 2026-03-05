@@ -14,6 +14,7 @@ use tokio::sync::Notify;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use wakatime_focusd::EventLoopOutcome;
+use wakatime_focusd::api::HeartbeatSender;
 use wakatime_focusd::backend::FocusError;
 use wakatime_focusd::backend::FocusEvent;
 use wakatime_focusd::backend::FocusSource;
@@ -21,7 +22,6 @@ use wakatime_focusd::config::Config;
 use wakatime_focusd::domain::Heartbeat;
 use wakatime_focusd::idle::IdleMonitor;
 use wakatime_focusd::run_event_loop;
-use wakatime_focusd::api::HeartbeatSender;
 
 /// A `FocusSource` that replays a scripted sequence of events.
 ///

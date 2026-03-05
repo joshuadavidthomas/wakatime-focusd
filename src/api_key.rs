@@ -162,11 +162,11 @@ ignore        =
     COMMIT_EDITMSG$
     PULLREQ_EDITMSG$
 api_url       = https://wakapi.example.com/api
-api_key       = 5687dab5-97ad-4bca-85b7-3581250ddc0d
+api_key       = waka_00000000-0000-0000-0000-000000000000
 ";
         assert_eq!(
             parse_api_key(content),
-            Some("5687dab5-97ad-4bca-85b7-3581250ddc0d".to_string())
+            Some("waka_00000000-0000-0000-0000-000000000000".to_string())
         );
     }
 
