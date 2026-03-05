@@ -67,7 +67,7 @@ This inconsistency could confuse users. Consider supporting regex in allowlist/d
 - [x] **aarch64-unknown-linux-gnu build** — add to CI matrix
 - [x] **`SIGHUP` config reload** — standard daemon pattern
 - [x] **`Display` for `Category`** and `Entity`
-- [ ] **`cargo-dist`** — generates the install.sh script, GitHub Release CI, platform matrix builds, and `cargo-binstall` metadata in one shot. Replaces the hand-rolled release workflow and solves install.sh, cross-compilation, and binary distribution all at once.
+- [x] **`cargo-dist`** — generates the install.sh script, GitHub Release CI, platform matrix builds, and `cargo-binstall` metadata in one shot. Replaces the hand-rolled release workflow and solves install.sh, cross-compilation, and binary distribution all at once.
 
 ### Tier 2 — Valuable additions
 

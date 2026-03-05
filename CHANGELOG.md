@@ -20,6 +20,8 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
+- Shell installer script for one-line installation (`curl | sh`), powered by [cargo-dist](https://opensource.axo.dev/cargo-dist/)
+- [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) support for pre-built binary installation
 - `SIGHUP` config reload — `systemctl --user reload wakatime-focusd` or `kill -HUP` to apply config changes without restarting. All settings except `backend` take effect immediately.
 - aarch64 (ARM64) prebuilt binaries in GitHub releases, alongside x86_64
 - `service install` now passes through `--config` and `--backend` flags into the generated systemd unit file's `ExecStart` line. Config paths are canonicalized to absolute paths so systemd can find them regardless of working directory.

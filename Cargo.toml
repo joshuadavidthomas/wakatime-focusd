@@ -52,3 +52,8 @@ path = "src/lib.rs"
 [[bin]]
 name = "wakatime-focusd"
 path = "src/main.rs"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
