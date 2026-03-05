@@ -82,7 +82,7 @@ pub struct Config {
     /// How to send heartbeats: "api" (direct HTTP) or "cli" (wakatime-cli).
     pub sender: SenderBackend,
 
-    /// `WakaTime` API base URL (default: <https://api.wakatime.com/api/v1>).
+    /// `WakaTime` API base URL (default: <https://api.wakatime.com/api>).
     /// Also read from `api_url` in `~/.wakatime.cfg` if not set here.
     pub api_url: Option<String>,
 
@@ -192,10 +192,10 @@ default_category = "coding"
 # sender = "api"
 
 # WakaTime API base URL (optional)
-# Default: https://api.wakatime.com/api/v1
+# Default: https://api.wakatime.com/api
 # Also read from api_url in ~/.wakatime.cfg if not set here.
 # For self-hosted Wakapi: use your instance URL (e.g. "https://wakapi.example.com/api")
-# api_url = "https://api.wakatime.com/api/v1"
+# api_url = "https://api.wakatime.com/api"
 
 # Path to wakatime config file (optional, default: ~/.wakatime.cfg)
 # Used to read the API key and api_url.

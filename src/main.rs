@@ -21,10 +21,13 @@ use tracing::info;
 use tracing::warn;
 use tracing_subscriber::EnvFilter;
 use wakatime_focusd::EventLoopOutcome;
+use wakatime_focusd::api::ApiSender;
 use wakatime_focusd::backend::Backend;
 use wakatime_focusd::backend::FocusSource;
 use wakatime_focusd::config::Config;
+use wakatime_focusd::config::SenderBackend;
 use wakatime_focusd::idle::IdleMonitor;
+use wakatime_focusd::wakatime::HeartbeatSender;
 use wakatime_focusd::wakatime::WakaTimeClient;
 
 /// `WakaTime` focus daemon.
@@ -459,6 +462,20 @@ fn reload_config(overrides: &CliOverrides) -> Result<Config> {
     Ok(config)
 }
 
+/// Create the appropriate heartbeat sender based on config.
+fn create_sender(config: &Config) -> Result<Box<dyn HeartbeatSender + Sync>> {
+    match config.sender {
+        SenderBackend::Api => {
+            let sender = ApiSender::from_config(config)?;
+            Ok(Box::new(sender))
+        }
+        SenderBackend::Cli => {
+            let sender = WakaTimeClient::from_config(config)?;
+            Ok(Box::new(sender))
+        }
+    }
+}
+
 /// Run daemon event loop.
 async fn run_daemon(
     backend: Backend,
@@ -467,8 +484,8 @@ async fn run_daemon(
     print_events: bool,
 ) -> Result<()> {
     let mut config = initial_config;
-    let mut wakatime_client =
-        WakaTimeClient::from_config(&config).context("Failed to initialize WakaTime client")?;
+    let mut sender: Box<dyn HeartbeatSender + Sync> =
+        create_sender(&config).context("Failed to initialize heartbeat sender")?;
 
     let shutdown = CancellationToken::new();
     setup_shutdown_signal(shutdown.clone());
@@ -508,7 +525,7 @@ async fn run_daemon(
         let outcome = wakatime_focusd::run_event_loop(
             source,
             &config,
-            &wakatime_client,
+            &*sender,
             &idle_monitor,
             &shutdown,
             &reload_signal,
@@ -533,11 +550,11 @@ async fn run_daemon(
                             );
                         }
 
-                        match WakaTimeClient::from_config(&new_config) {
-                            Ok(client) => wakatime_client = client,
+                        match create_sender(&new_config) {
+                            Ok(new_sender) => sender = new_sender,
                             Err(e) => {
                                 error!(
-                                    "Failed to initialize WakaTime client after reload: {e}. \
+                                    "Failed to initialize heartbeat sender after reload: {e}. \
                                      Keeping current configuration."
                                 );
                                 continue;

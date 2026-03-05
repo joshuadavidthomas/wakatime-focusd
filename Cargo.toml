@@ -30,6 +30,7 @@ cosmic-protocols = { version = "0.2", default-features = false, features = ["cli
 wayland-protocols = { version = "0.32", features = ["staging", "client"] }
 tokio-util = "0.7.18"
 axoupdater = { version = "0.10.0", features = ["github_releases"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json"] }
 
 [dev-dependencies]
 cosmic-protocols = { version = "0.2", features = ["server"] }

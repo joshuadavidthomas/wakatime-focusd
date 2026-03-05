@@ -2447,6 +2447,7 @@ dependencies = [
  "futures-util",
  "libc",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "serial_test",

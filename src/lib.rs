@@ -3,6 +3,7 @@
 //! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
 //! using wakatime-cli.
 
+pub mod api;
 pub mod api_key;
 pub mod backend;
 pub mod config;
