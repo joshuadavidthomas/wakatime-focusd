@@ -33,6 +33,24 @@ Heartbeats are gated by systemd-logind's `IdleHint`, so no activity is recorded 
 
 ## Installation
 
+### Pre-built binaries (recommended)
+
+Install the latest release with the shell installer:
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/joshuadavidthomas/wakatime-focusd/releases/latest/download/wakatime-focusd-installer.sh | sh
+```
+
+Pre-built binaries are available for x86_64 and aarch64 Linux on the [GitHub Releases](https://github.com/joshuadavidthomas/wakatime-focusd/releases) page.
+
+### cargo-binstall
+
+If you have [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installed:
+
+```bash
+cargo binstall wakatime-focusd
+```
+
 ### Building from source
 
 ```bash
