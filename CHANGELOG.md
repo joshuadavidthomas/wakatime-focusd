@@ -20,7 +20,16 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ### Added
 
-- `wakatime-focusd update` command for self-updating to the latest release. Works when installed via the shell installer (cargo-dist). Checks for a newer version, downloads and installs it, then reminds you to restart the systemd service. Set `GITHUB_TOKEN` to avoid GitHub API rate limits.
+- Heartbeats are now sent directly to the WakaTime API over HTTP instead of spawning wakatime-cli. wakatime-cli is no longer required — just an API key in `~/.wakatime.cfg` or `$WAKATIME_API_KEY`.
+- Heartbeat batching — buffered in memory, flushed in bulk to reduce network requests.
+- Offline queue — failed sends are saved to `~/.local/share/wakatime-focusd/queue.jsonl` and replayed automatically. Bounded at 10 MB.
+- `api_url` config option for self-hosted WakaTime/Wakapi servers. Also read from `~/.wakatime.cfg`.
+- `wakatime-focusd update` command for self-updating via cargo-dist. Set `GITHUB_TOKEN` to avoid rate limits.
+
+### Removed
+
+- wakatime-cli sender. The `wakatime_cli_path` config option no longer exists and will cause a parse error if present — remove it from your config. The `which` crate dependency is also gone.
+
 
 ## [0.3.0]
 
