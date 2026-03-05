@@ -60,6 +60,20 @@ cargo build --release
 cp target/release/wakatime-focusd ~/.local/bin/
 ```
 
+### Updating
+
+If you installed via the shell installer, you can update to the latest release in-place:
+
+```bash
+wakatime-focusd update
+```
+
+If running as a systemd service, restart it after updating:
+
+```bash
+systemctl --user restart wakatime-focusd
+```
+
 ### Installing the systemd service
 
 ```bash
@@ -242,6 +256,7 @@ commands = [
     (["service", "uninstall"], "wakatime-focusd service uninstall --help"),
     (["service", "status"], "wakatime-focusd service status --help"),
     (["oneshot"], "wakatime-focusd oneshot --help"),
+    (["update"], "wakatime-focusd update --help"),
 ]
 
 for i, (args, label) in enumerate(commands):
@@ -265,6 +280,7 @@ Commands:
   config   Manage configuration
   service  Manage the systemd user service
   oneshot  Capture a few focus events and exit (for debugging)
+  update   Update to the latest release
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -556,6 +572,38 @@ Options:
           
           [default: 5]
 
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+```bash
+$ wakatime-focusd update --help
+Update to the latest release.
+
+Checks for a newer version and installs it. Only works when installed via the shell installer (cargo-dist). Builds from source or cargo-binstall should use their original install method to update.
+
+Usage: wakatime-focusd update [OPTIONS]
+
+Options:
   -c, --config <CONFIG>
           Path to config file
 
