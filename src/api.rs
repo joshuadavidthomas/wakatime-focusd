@@ -55,7 +55,7 @@ const DEFAULT_API_URL: &str = "https://api.wakatime.com/api";
 const ERROR_LOG_RATE_LIMIT: u32 = 10;
 
 /// Plugin identifier sent with each heartbeat.
-/// WakaTime User-Agent format: `(OS) plugin/version`.
+/// `WakaTime` User-Agent format: `(OS) plugin/version`.
 fn user_agent() -> String {
     let os = std::env::consts::OS;
     let os = match os {

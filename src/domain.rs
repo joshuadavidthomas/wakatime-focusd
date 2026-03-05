@@ -106,6 +106,10 @@ pub struct Heartbeat {
 
 impl Heartbeat {
     /// Create a new heartbeat, capturing the current time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the system clock is before the UNIX epoch.
     #[must_use]
     pub fn new(entity: Entity, category: Category, source: FocusEvent) -> Self {
         let time = SystemTime::now()
