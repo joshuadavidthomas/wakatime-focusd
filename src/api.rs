@@ -2,7 +2,10 @@
 //!
 //! Sends heartbeats via HTTP POST instead of spawning wakatime-cli.
 //! Heartbeats are buffered and sent in batches via the bulk endpoint.
+//! Failed sends are persisted to an offline queue and replayed later.
 
+use std::io::Write;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use std::sync::Mutex;
@@ -14,6 +17,7 @@ use anyhow::Result;
 use futures_util::future::BoxFuture;
 use reqwest::Client;
 use reqwest::StatusCode;
+use serde::Deserialize;
 use serde::Serialize;
 use tracing::debug;
 use tracing::error;
@@ -41,15 +45,24 @@ const BATCH_THRESHOLD: usize = 10;
 /// Maximum heartbeats per bulk API request (`WakaTime` API limit).
 const MAX_BULK_SIZE: usize = 25;
 
-/// JSON payload for a heartbeat (owned, for buffering).
-#[derive(Debug, Clone, Serialize)]
+/// Maximum offline queue file size in bytes (10 MB).
+const QUEUE_MAX_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Maximum number of queued batches to drain per flush cycle.
+const QUEUE_DRAIN_LIMIT: usize = 10;
+
+/// Offline queue file name.
+const QUEUE_FILE: &str = "queue.jsonl";
+
+/// JSON payload for a heartbeat (fully owned for buffering and offline queue).
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct HeartbeatPayload {
     entity: String,
     #[serde(rename = "type")]
-    entity_type: &'static str,
+    entity_type: String,
     category: String,
     time: f64,
-    plugin: &'static str,
+    plugin: String,
 }
 
 impl HeartbeatPayload {
@@ -60,19 +73,22 @@ impl HeartbeatPayload {
 
         Ok(Self {
             entity: heartbeat.entity.as_str().to_string(),
-            entity_type: "app",
+            entity_type: "app".to_string(),
             category: heartbeat.category.as_str().to_string(),
             time: now.as_secs_f64(),
-            plugin: PLUGIN_ID,
+            plugin: PLUGIN_ID.to_string(),
         })
     }
 }
 
-/// Direct `WakaTime` API sender with heartbeat batching.
+/// Direct `WakaTime` API sender with heartbeat batching and offline queue.
 ///
 /// Heartbeats are buffered in memory and flushed to the bulk API endpoint
 /// when the buffer reaches [`BATCH_THRESHOLD`] or when [`flush`](Self::flush)
 /// is called explicitly (on periodic ticks and shutdown).
+///
+/// If a flush fails (network down, server error), the batch is persisted to
+/// an offline queue file and replayed on the next successful flush.
 #[derive(Debug)]
 pub struct ApiSender {
     /// HTTP client (reused for connection pooling).
@@ -92,6 +108,9 @@ pub struct ApiSender {
 
     /// Buffered heartbeats waiting to be flushed.
     buffer: Mutex<Vec<HeartbeatPayload>>,
+
+    /// Path to the offline queue file.
+    queue_path: Option<PathBuf>,
 
     /// Per-instance error log counter for rate limiting.
     error_log_count: AtomicU32,
@@ -116,7 +135,12 @@ impl ApiSender {
             .build()
             .context("Failed to build HTTP client")?;
 
+        let queue_path = dirs::data_dir().map(|d| d.join("wakatime-focusd").join(QUEUE_FILE));
+
         info!("Using WakaTime API: {heartbeat_url}");
+        if let Some(ref qp) = queue_path {
+            debug!("Offline queue path: {}", qp.display());
+        }
 
         Ok(Self {
             client,
@@ -125,6 +149,7 @@ impl ApiSender {
             api_key,
             dry_run: config.dry_run,
             buffer: Mutex::new(Vec::new()),
+            queue_path,
             error_log_count: AtomicU32::new(0),
         })
     }
@@ -180,6 +205,9 @@ impl ApiSender {
     }
 
     /// Flush all buffered heartbeats to the API.
+    ///
+    /// On success, also drains any queued offline heartbeats.
+    /// On failure, persists the batch to the offline queue.
     async fn flush_buffer(&self) -> Result<()> {
         let payloads = {
             let mut buffer = self.buffer.lock().expect("buffer lock poisoned");
@@ -187,16 +215,31 @@ impl ApiSender {
         };
 
         if payloads.is_empty() {
+            // No new heartbeats, but still try to drain offline queue
+            self.drain_queue().await;
             return Ok(());
         }
 
         debug!("Flushing {} buffered heartbeat(s)", payloads.len());
 
+        match self.send_payloads(&payloads).await {
+            Ok(()) => {
+                self.drain_queue().await;
+                Ok(())
+            }
+            Err(e) => {
+                self.persist_to_queue(&payloads);
+                Err(e)
+            }
+        }
+    }
+
+    /// Send a slice of payloads, using single or bulk endpoint as appropriate.
+    async fn send_payloads(&self, payloads: &[HeartbeatPayload]) -> Result<()> {
         if payloads.len() == 1 {
             return self.post_single(&payloads[0]).await;
         }
 
-        // Chunk into groups of MAX_BULK_SIZE per API limit
         for chunk in payloads.chunks(MAX_BULK_SIZE) {
             self.post_bulk(chunk).await?;
         }
@@ -244,8 +287,6 @@ impl ApiSender {
                 Ok(())
             }
             StatusCode::UNAUTHORIZED => {
-                // Log auth errors clearly — don't rate-limit these since
-                // they indicate a configuration problem, not transient failure
                 error!(
                     "WakaTime API authentication failed (401). \
                      Check your API key in ~/.wakatime.cfg or $WAKATIME_API_KEY"
@@ -277,6 +318,146 @@ impl ApiSender {
             }
         }
     }
+
+    /// Persist a failed batch to the offline queue file.
+    ///
+    /// Appends the batch as a single JSON line. Skips if the queue file
+    /// exceeds [`QUEUE_MAX_SIZE`] to prevent unbounded disk growth.
+    fn persist_to_queue(&self, payloads: &[HeartbeatPayload]) {
+        let Some(ref queue_path) = self.queue_path else {
+            warn!("No offline queue path available, dropping {} heartbeat(s)", payloads.len());
+            return;
+        };
+
+        // Check file size before appending
+        if let Ok(metadata) = std::fs::metadata(queue_path)
+            && metadata.len() >= QUEUE_MAX_SIZE
+        {
+            warn!(
+                "Offline queue is full ({} bytes), dropping {} heartbeat(s)",
+                metadata.len(),
+                payloads.len()
+            );
+            return;
+        }
+
+        // Ensure parent directory exists
+        if let Some(parent) = queue_path.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            error!("Failed to create offline queue directory: {e}");
+            return;
+        }
+
+        let line = match serde_json::to_string(payloads) {
+            Ok(l) => l,
+            Err(e) => {
+                error!("Failed to serialize heartbeats for offline queue: {e}");
+                return;
+            }
+        };
+
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(queue_path)
+        {
+            Ok(mut file) => {
+                if let Err(e) = writeln!(file, "{line}") {
+                    error!("Failed to write to offline queue: {e}");
+                } else {
+                    info!(
+                        "Queued {} heartbeat(s) to offline queue",
+                        payloads.len()
+                    );
+                }
+            }
+            Err(e) => error!("Failed to open offline queue: {e}"),
+        }
+    }
+
+    /// Drain queued batches from the offline queue file.
+    ///
+    /// Sends up to [`QUEUE_DRAIN_LIMIT`] batches, oldest first. On failure,
+    /// stops and rewrites the queue file with the remaining batches. On full
+    /// drain, removes the queue file.
+    async fn drain_queue(&self) {
+        let Some(ref queue_path) = self.queue_path else {
+            return;
+        };
+
+        let content = match std::fs::read_to_string(queue_path) {
+            Ok(c) if !c.is_empty() => c,
+            _ => return,
+        };
+
+        let lines: Vec<String> = content.lines().map(String::from).collect();
+        if lines.is_empty() {
+            return;
+        }
+
+        info!("Draining offline queue ({} batch(es))", lines.len());
+
+        let mut drained = 0;
+
+        for line in &lines {
+            if drained >= QUEUE_DRAIN_LIMIT {
+                debug!(
+                    "Reached drain limit ({}), deferring remaining batches",
+                    QUEUE_DRAIN_LIMIT
+                );
+                break;
+            }
+
+            let batch: Vec<HeartbeatPayload> = match serde_json::from_str(line) {
+                Ok(b) => b,
+                Err(e) => {
+                    warn!("Skipping corrupt queue entry: {e}");
+                    drained += 1;
+                    continue;
+                }
+            };
+
+            if let Err(e) = self.send_payloads(&batch).await {
+                warn!("Failed to drain queued batch: {e}. Will retry later.");
+                break;
+            }
+
+            debug!("Drained queued batch ({} heartbeat(s))", batch.len());
+            drained += 1;
+        }
+
+        if drained == 0 {
+            return;
+        }
+
+        if drained >= lines.len() {
+            // All batches drained, remove queue file
+            if let Err(e) = std::fs::remove_file(queue_path) {
+                warn!("Failed to remove empty queue file: {e}");
+            } else {
+                info!("Offline queue fully drained");
+            }
+        } else {
+            // Rewrite with remaining batches
+            let remaining = lines[drained..].iter().fold(
+                String::new(),
+                |mut acc, l| {
+                    acc.push_str(l);
+                    acc.push('\n');
+                    acc
+                },
+            );
+            if let Err(e) = std::fs::write(queue_path, remaining) {
+                error!("Failed to rewrite offline queue: {e}");
+            } else {
+                debug!(
+                    "Offline queue trimmed: {} batch(es) remaining",
+                    lines.len() - drained
+                );
+            }
+        }
+    }
 }
 
 impl HeartbeatSender for ApiSender {
@@ -297,10 +478,10 @@ mod tests {
     fn test_heartbeat_payload_serialization() {
         let payload = HeartbeatPayload {
             entity: "firefox".to_string(),
-            entity_type: "app",
+            entity_type: "app".to_string(),
             category: "browsing".to_string(),
             time: 1_700_000_000.123,
-            plugin: "wakatime-focusd/0.3.0",
+            plugin: "wakatime-focusd/0.3.0".to_string(),
         };
 
         let json = serde_json::to_value(&payload).unwrap();
@@ -312,21 +493,38 @@ mod tests {
     }
 
     #[test]
+    fn test_heartbeat_payload_roundtrip() {
+        let payload = HeartbeatPayload {
+            entity: "firefox".to_string(),
+            entity_type: "app".to_string(),
+            category: "browsing".to_string(),
+            time: 1_700_000_000.123,
+            plugin: PLUGIN_ID.to_string(),
+        };
+
+        let json = serde_json::to_string(&payload).unwrap();
+        let deserialized: HeartbeatPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.entity, "firefox");
+        assert_eq!(deserialized.entity_type, "app");
+        assert_eq!(deserialized.category, "browsing");
+    }
+
+    #[test]
     fn test_bulk_payload_serialization() {
         let payloads = vec![
             HeartbeatPayload {
                 entity: "firefox".to_string(),
-                entity_type: "app",
+                entity_type: "app".to_string(),
                 category: "browsing".to_string(),
                 time: 1_700_000_000.0,
-                plugin: PLUGIN_ID,
+                plugin: PLUGIN_ID.to_string(),
             },
             HeartbeatPayload {
                 entity: "code".to_string(),
-                entity_type: "app",
+                entity_type: "app".to_string(),
                 category: "coding".to_string(),
                 time: 1_700_000_001.0,
-                plugin: PLUGIN_ID,
+                plugin: PLUGIN_ID.to_string(),
             },
         ];
 
@@ -335,6 +533,32 @@ mod tests {
         assert_eq!(json.as_array().unwrap().len(), 2);
         assert_eq!(json[0]["entity"], "firefox");
         assert_eq!(json[1]["entity"], "code");
+    }
+
+    #[test]
+    fn test_bulk_payload_roundtrip() {
+        let payloads = vec![
+            HeartbeatPayload {
+                entity: "firefox".to_string(),
+                entity_type: "app".to_string(),
+                category: "browsing".to_string(),
+                time: 1_700_000_000.0,
+                plugin: PLUGIN_ID.to_string(),
+            },
+            HeartbeatPayload {
+                entity: "code".to_string(),
+                entity_type: "app".to_string(),
+                category: "coding".to_string(),
+                time: 1_700_000_001.0,
+                plugin: PLUGIN_ID.to_string(),
+            },
+        ];
+
+        let json_line = serde_json::to_string(&payloads).unwrap();
+        let deserialized: Vec<HeartbeatPayload> = serde_json::from_str(&json_line).unwrap();
+        assert_eq!(deserialized.len(), 2);
+        assert_eq!(deserialized[0].entity, "firefox");
+        assert_eq!(deserialized[1].entity, "code");
     }
 
     #[test]
@@ -410,5 +634,153 @@ mod tests {
             url,
             "https://api.wakatime.com/api/v1/users/current/heartbeats"
         );
+    }
+
+    #[test]
+    fn test_persist_to_queue_and_read_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let queue_path = dir.path().join("queue.jsonl");
+
+        let sender = ApiSender {
+            client: Client::new(),
+            heartbeat_url: String::new(),
+            bulk_url: String::new(),
+            api_key: String::new(),
+            dry_run: false,
+            buffer: Mutex::new(Vec::new()),
+            queue_path: Some(queue_path.clone()),
+            error_log_count: AtomicU32::new(0),
+        };
+
+        let payloads = vec![
+            HeartbeatPayload {
+                entity: "firefox".to_string(),
+                entity_type: "app".to_string(),
+                category: "browsing".to_string(),
+                time: 1_700_000_000.0,
+                plugin: PLUGIN_ID.to_string(),
+            },
+            HeartbeatPayload {
+                entity: "code".to_string(),
+                entity_type: "app".to_string(),
+                category: "coding".to_string(),
+                time: 1_700_000_001.0,
+                plugin: PLUGIN_ID.to_string(),
+            },
+        ];
+
+        // Persist
+        sender.persist_to_queue(&payloads);
+        assert!(queue_path.exists());
+
+        // Read back
+        let content = std::fs::read_to_string(&queue_path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 1);
+
+        let batch: Vec<HeartbeatPayload> = serde_json::from_str(lines[0]).unwrap();
+        assert_eq!(batch.len(), 2);
+        assert_eq!(batch[0].entity, "firefox");
+        assert_eq!(batch[1].entity, "code");
+    }
+
+    #[test]
+    fn test_persist_multiple_batches() {
+        let dir = tempfile::tempdir().unwrap();
+        let queue_path = dir.path().join("queue.jsonl");
+
+        let sender = ApiSender {
+            client: Client::new(),
+            heartbeat_url: String::new(),
+            bulk_url: String::new(),
+            api_key: String::new(),
+            dry_run: false,
+            buffer: Mutex::new(Vec::new()),
+            queue_path: Some(queue_path.clone()),
+            error_log_count: AtomicU32::new(0),
+        };
+
+        // Persist two separate batches
+        sender.persist_to_queue(&[HeartbeatPayload {
+            entity: "batch1".to_string(),
+            entity_type: "app".to_string(),
+            category: "coding".to_string(),
+            time: 1.0,
+            plugin: PLUGIN_ID.to_string(),
+        }]);
+        sender.persist_to_queue(&[HeartbeatPayload {
+            entity: "batch2".to_string(),
+            entity_type: "app".to_string(),
+            category: "coding".to_string(),
+            time: 2.0,
+            plugin: PLUGIN_ID.to_string(),
+        }]);
+
+        let content = std::fs::read_to_string(&queue_path).unwrap();
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 2);
+
+        let batch1: Vec<HeartbeatPayload> = serde_json::from_str(lines[0]).unwrap();
+        let batch2: Vec<HeartbeatPayload> = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(batch1[0].entity, "batch1");
+        assert_eq!(batch2[0].entity, "batch2");
+    }
+
+    #[test]
+    fn test_persist_respects_max_size() {
+        let dir = tempfile::tempdir().unwrap();
+        let queue_path = dir.path().join("queue.jsonl");
+
+        // Pre-fill the queue file to just under the limit
+        #[allow(clippy::cast_possible_truncation)]
+        let big_content = "x".repeat(QUEUE_MAX_SIZE as usize);
+        std::fs::write(&queue_path, &big_content).unwrap();
+
+        let sender = ApiSender {
+            client: Client::new(),
+            heartbeat_url: String::new(),
+            bulk_url: String::new(),
+            api_key: String::new(),
+            dry_run: false,
+            buffer: Mutex::new(Vec::new()),
+            queue_path: Some(queue_path.clone()),
+            error_log_count: AtomicU32::new(0),
+        };
+
+        // This should be dropped because the file is already at max size
+        sender.persist_to_queue(&[HeartbeatPayload {
+            entity: "should-be-dropped".to_string(),
+            entity_type: "app".to_string(),
+            category: "coding".to_string(),
+            time: 1.0,
+            plugin: PLUGIN_ID.to_string(),
+        }]);
+
+        // File should still just contain the original content
+        let content = std::fs::read_to_string(&queue_path).unwrap();
+        assert_eq!(content, big_content);
+    }
+
+    #[test]
+    fn test_persist_no_queue_path() {
+        let sender = ApiSender {
+            client: Client::new(),
+            heartbeat_url: String::new(),
+            bulk_url: String::new(),
+            api_key: String::new(),
+            dry_run: false,
+            buffer: Mutex::new(Vec::new()),
+            queue_path: None,
+            error_log_count: AtomicU32::new(0),
+        };
+
+        // Should not panic
+        sender.persist_to_queue(&[HeartbeatPayload {
+            entity: "test".to_string(),
+            entity_type: "app".to_string(),
+            category: "coding".to_string(),
+            time: 1.0,
+            plugin: PLUGIN_ID.to_string(),
+        }]);
     }
 }
