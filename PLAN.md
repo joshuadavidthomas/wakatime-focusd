@@ -68,6 +68,8 @@ This inconsistency could confuse users. Consider supporting regex in allowlist/d
 - [x] **`SIGHUP` config reload** — standard daemon pattern
 - [x] **`Display` for `Category`** and `Entity`
 - [x] **`cargo-dist`** — generates the install.sh script, GitHub Release CI, platform matrix builds, and `cargo-binstall` metadata in one shot. Replaces the hand-rolled release workflow and solves install.sh, cross-compilation, and binary distribution all at once.
+- [ ] **`cargo-dist` updater** — enable the built-in self-updater so users can run `wakatime-focusd --update` (or similar) to fetch the latest release without re-running the install script.
+- [ ] **CLI snapshot testing** — use [trycmd](https://github.com/assert-rs/trycmd) or [snapbox](https://github.com/assert-rs/snapbox) to snapshot-test `--help` output and command behavior. Catches unintentional CLI changes (flag renames, default changes, subcommand reorganization) that `cargo-semver-checks` can't detect since it only covers library API surfaces.
 
 ### Tier 2 — Valuable additions
 
