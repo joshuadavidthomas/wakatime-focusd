@@ -18,6 +18,10 @@ and this project attempts to adhere to [Semantic Versioning](https://semver.org/
 
 ## [Unreleased]
 
+### Added
+
+- `wakatime-focusd update` command for self-updating to the latest release. Works when installed via the shell installer (cargo-dist). Checks for a newer version, downloads and installs it, then reminds you to restart the systemd service. Set `GITHUB_TOKEN` to avoid GitHub API rate limits.
+
 ## [0.3.0]
 
 ### Added

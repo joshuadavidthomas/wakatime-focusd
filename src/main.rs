@@ -10,6 +10,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
+use axoupdater::AxoUpdater;
+use axoupdater::UpdateRequest;
 use clap::Parser;
 use clap::Subcommand;
 use tokio::sync::Notify;
@@ -76,6 +78,13 @@ enum Command {
         #[arg(short = 'n', long = "count", default_value = "5")]
         count: usize,
     },
+
+    /// Update to the latest release.
+    ///
+    /// Checks for a newer version and installs it. Only works when installed
+    /// via the shell installer (cargo-dist). Builds from source or
+    /// cargo-binstall should use their original install method to update.
+    Update,
 }
 
 #[derive(Subcommand, Debug)]
@@ -156,6 +165,7 @@ async fn main() -> Result<()> {
                 }
             },
             Command::Oneshot { count } => return cmd_oneshot(&args, *count).await,
+            Command::Update => return cmd_update().await,
         }
     }
 
@@ -240,6 +250,58 @@ fn cmd_init(output: Option<&Path>, force: bool) -> Result<()> {
 fn cmd_dump_config(args: &Args) -> Result<()> {
     let config = load_config(args)?;
     println!("{}", config.dump()?);
+    Ok(())
+}
+
+/// `update` — check for and install the latest release.
+async fn cmd_update() -> Result<()> {
+    let mut updater = AxoUpdater::new_for("wakatime-focusd");
+    updater.configure_version_specifier(UpdateRequest::Latest);
+
+    if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+        updater.set_github_token(&token);
+    }
+
+    match updater.load_receipt() {
+        Ok(_) => {}
+        Err(e) => {
+            // Match on the specific error types for a friendly message
+            let msg = e.to_string();
+            if msg.contains("Unable to load receipt") || msg.contains("Unable to read") {
+                eprintln!("No install receipt found for wakatime-focusd.");
+                eprintln!();
+                eprintln!("Self-update only works when installed via the shell installer:");
+                eprintln!(
+                    "  curl --proto '=https' --tlsv1.2 -LsSf \
+                     https://github.com/joshuadavidthomas/wakatime-focusd/releases/latest/download/wakatime-focusd-installer.sh | sh"
+                );
+                eprintln!();
+                eprintln!(
+                    "If you installed via cargo or built from source, use that method to update."
+                );
+                std::process::exit(1);
+            }
+            return Err(e).context("Failed to load install receipt");
+        }
+    }
+
+    eprintln!("Checking for updates...");
+
+    match updater.run().await {
+        Ok(Some(result)) => {
+            eprintln!("Updated wakatime-focusd to {}!", result.new_version);
+            eprintln!();
+            eprintln!("If running as a systemd service, restart it to use the new version:");
+            eprintln!("  systemctl --user restart wakatime-focusd");
+        }
+        Ok(None) => {
+            eprintln!("Already up to date (v{}).", env!("CARGO_PKG_VERSION"));
+        }
+        Err(e) => {
+            return Err(e).context("Update failed");
+        }
+    }
+
     Ok(())
 }
 
