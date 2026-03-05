@@ -1,9 +1,11 @@
 //! Direct `WakaTime` API heartbeat sender.
 //!
 //! Sends heartbeats via HTTP POST instead of spawning wakatime-cli.
+//! Heartbeats are buffered and sent in batches via the bulk endpoint.
 
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
@@ -33,31 +35,63 @@ const ERROR_LOG_RATE_LIMIT: u32 = 10;
 /// Plugin identifier sent with each heartbeat.
 const PLUGIN_ID: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-/// JSON payload for a single heartbeat POST.
-#[derive(Debug, Serialize)]
-struct HeartbeatPayload<'a> {
-    entity: &'a str,
+/// Flush the buffer when it reaches this many heartbeats.
+const BATCH_THRESHOLD: usize = 10;
+
+/// Maximum heartbeats per bulk API request (`WakaTime` API limit).
+const MAX_BULK_SIZE: usize = 25;
+
+/// JSON payload for a heartbeat (owned, for buffering).
+#[derive(Debug, Clone, Serialize)]
+struct HeartbeatPayload {
+    entity: String,
     #[serde(rename = "type")]
     entity_type: &'static str,
-    category: &'a str,
+    category: String,
     time: f64,
     plugin: &'static str,
 }
 
-/// Direct `WakaTime` API sender.
+impl HeartbeatPayload {
+    fn from_heartbeat(heartbeat: &Heartbeat) -> Result<Self> {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .context("System time before UNIX epoch")?;
+
+        Ok(Self {
+            entity: heartbeat.entity.as_str().to_string(),
+            entity_type: "app",
+            category: heartbeat.category.as_str().to_string(),
+            time: now.as_secs_f64(),
+            plugin: PLUGIN_ID,
+        })
+    }
+}
+
+/// Direct `WakaTime` API sender with heartbeat batching.
+///
+/// Heartbeats are buffered in memory and flushed to the bulk API endpoint
+/// when the buffer reaches [`BATCH_THRESHOLD`] or when [`flush`](Self::flush)
+/// is called explicitly (on periodic ticks and shutdown).
 #[derive(Debug)]
 pub struct ApiSender {
     /// HTTP client (reused for connection pooling).
     client: Client,
 
-    /// Full heartbeat endpoint URL.
+    /// Full single-heartbeat endpoint URL (used when buffer has 1 item).
     heartbeat_url: String,
+
+    /// Full bulk heartbeat endpoint URL.
+    bulk_url: String,
 
     /// API key for authentication.
     api_key: String,
 
     /// Dry run mode.
     dry_run: bool,
+
+    /// Buffered heartbeats waiting to be flushed.
+    buffer: Mutex<Vec<HeartbeatPayload>>,
 
     /// Per-instance error log counter for rate limiting.
     error_log_count: AtomicU32,
@@ -75,6 +109,7 @@ impl ApiSender {
         let base_url = Self::resolve_api_url(config);
         let base_url = base_url.trim_end_matches('/');
         let heartbeat_url = format!("{base_url}/v1/users/current/heartbeats");
+        let bulk_url = format!("{base_url}/v1/users/current/heartbeats.bulk");
 
         let client = Client::builder()
             .user_agent(PLUGIN_ID)
@@ -86,8 +121,10 @@ impl ApiSender {
         Ok(Self {
             client,
             heartbeat_url,
+            bulk_url,
             api_key,
             dry_run: config.dry_run,
+            buffer: Mutex::new(Vec::new()),
             error_log_count: AtomicU32::new(0),
         })
     }
@@ -109,48 +146,101 @@ impl ApiSender {
         DEFAULT_API_URL.to_string()
     }
 
-    /// Send a heartbeat to the `WakaTime` API.
-    pub async fn send_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .context("System time before UNIX epoch")?;
-
-        let payload = HeartbeatPayload {
-            entity: heartbeat.entity.as_str(),
-            entity_type: "app",
-            category: heartbeat.category.as_str(),
-            time: now.as_secs_f64(),
-            plugin: PLUGIN_ID,
-        };
+    /// Buffer a heartbeat. Triggers a flush if the buffer reaches the threshold.
+    async fn buffer_heartbeat(&self, heartbeat: &Heartbeat) -> Result<()> {
+        let payload = HeartbeatPayload::from_heartbeat(heartbeat)?;
 
         if self.dry_run {
             info!(
-                "[DRY RUN] Would POST to {}: {}",
-                self.heartbeat_url,
+                "[DRY RUN] Would send heartbeat: {}",
                 serde_json::to_string(&payload).unwrap_or_default()
             );
             return Ok(());
         }
 
         debug!(
-            "Sending heartbeat to API: entity={} category={}",
+            "Buffering heartbeat: entity={} category={}",
             heartbeat.entity, heartbeat.category
         );
 
+        let should_flush = {
+            let mut buffer = self.buffer.lock().expect("buffer lock poisoned");
+            buffer.push(payload);
+            buffer.len() >= BATCH_THRESHOLD
+        };
+
+        if should_flush {
+            debug!("Buffer reached threshold ({}), flushing", BATCH_THRESHOLD);
+            if let Err(e) = self.flush_buffer().await {
+                warn!("Failed to flush heartbeat buffer: {e}");
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Flush all buffered heartbeats to the API.
+    async fn flush_buffer(&self) -> Result<()> {
+        let payloads = {
+            let mut buffer = self.buffer.lock().expect("buffer lock poisoned");
+            std::mem::take(&mut *buffer)
+        };
+
+        if payloads.is_empty() {
+            return Ok(());
+        }
+
+        debug!("Flushing {} buffered heartbeat(s)", payloads.len());
+
+        if payloads.len() == 1 {
+            return self.post_single(&payloads[0]).await;
+        }
+
+        // Chunk into groups of MAX_BULK_SIZE per API limit
+        for chunk in payloads.chunks(MAX_BULK_SIZE) {
+            self.post_bulk(chunk).await?;
+        }
+
+        Ok(())
+    }
+
+    /// POST a single heartbeat.
+    async fn post_single(&self, payload: &HeartbeatPayload) -> Result<()> {
         let response = self
             .client
             .post(&self.heartbeat_url)
             .basic_auth(&self.api_key, None::<&str>)
-            .json(&payload)
+            .json(payload)
             .send()
             .await
             .context("Failed to send heartbeat request")?;
 
+        self.handle_response(response).await
+    }
+
+    /// POST a batch of heartbeats to the bulk endpoint.
+    async fn post_bulk(&self, payloads: &[HeartbeatPayload]) -> Result<()> {
+        debug!("Sending bulk request with {} heartbeat(s)", payloads.len());
+
+        let response = self
+            .client
+            .post(&self.bulk_url)
+            .basic_auth(&self.api_key, None::<&str>)
+            .json(payloads)
+            .send()
+            .await
+            .context("Failed to send bulk heartbeat request")?;
+
+        self.handle_response(response).await
+    }
+
+    /// Handle an API response, mapping status codes to results.
+    async fn handle_response(&self, response: reqwest::Response) -> Result<()> {
         let status = response.status();
 
         match status {
             s if s.is_success() => {
-                trace!("Heartbeat accepted ({})", s);
+                trace!("Heartbeat(s) accepted ({})", s);
                 Ok(())
             }
             StatusCode::UNAUTHORIZED => {
@@ -168,9 +258,7 @@ impl ApiSender {
                     .get("retry-after")
                     .and_then(|v| v.to_str().ok())
                     .unwrap_or("unknown");
-                warn!(
-                    "WakaTime API rate limited (429). Retry-After: {retry_after}"
-                );
+                warn!("WakaTime API rate limited (429). Retry-After: {retry_after}");
                 anyhow::bail!("Rate limited by WakaTime API")
             }
             _ => {
@@ -193,7 +281,11 @@ impl ApiSender {
 
 impl HeartbeatSender for ApiSender {
     fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>> {
-        Box::pin(async move { self.send_heartbeat(heartbeat).await })
+        Box::pin(async move { self.buffer_heartbeat(heartbeat).await })
+    }
+
+    fn flush(&self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async move { self.flush_buffer().await })
     }
 }
 
@@ -204,9 +296,9 @@ mod tests {
     #[test]
     fn test_heartbeat_payload_serialization() {
         let payload = HeartbeatPayload {
-            entity: "firefox",
+            entity: "firefox".to_string(),
             entity_type: "app",
-            category: "browsing",
+            category: "browsing".to_string(),
             time: 1_700_000_000.123,
             plugin: "wakatime-focusd/0.3.0",
         };
@@ -216,8 +308,33 @@ mod tests {
         assert_eq!(json["type"], "app");
         assert_eq!(json["category"], "browsing");
         assert_eq!(json["plugin"], "wakatime-focusd/0.3.0");
-        // time should be a float
         assert!(json["time"].is_f64());
+    }
+
+    #[test]
+    fn test_bulk_payload_serialization() {
+        let payloads = vec![
+            HeartbeatPayload {
+                entity: "firefox".to_string(),
+                entity_type: "app",
+                category: "browsing".to_string(),
+                time: 1_700_000_000.0,
+                plugin: PLUGIN_ID,
+            },
+            HeartbeatPayload {
+                entity: "code".to_string(),
+                entity_type: "app",
+                category: "coding".to_string(),
+                time: 1_700_000_001.0,
+                plugin: PLUGIN_ID,
+            },
+        ];
+
+        let json = serde_json::to_value(&payloads).unwrap();
+        assert!(json.is_array());
+        assert_eq!(json.as_array().unwrap().len(), 2);
+        assert_eq!(json[0]["entity"], "firefox");
+        assert_eq!(json[1]["entity"], "code");
     }
 
     #[test]
@@ -278,7 +395,6 @@ mod tests {
             wakatime_config_path: Some(cfg_path),
             ..Config::default()
         };
-        // Daemon config takes priority over wakatime.cfg
         assert_eq!(
             ApiSender::resolve_api_url(&config),
             "https://from-config.example.com/api"
@@ -287,7 +403,6 @@ mod tests {
 
     #[test]
     fn test_heartbeat_url_trailing_slash_handled() {
-        // Verify that trailing slashes in the base URL don't cause double slashes
         let base = "https://api.wakatime.com/api/";
         let base = base.trim_end_matches('/');
         let url = format!("{base}/v1/users/current/heartbeats");

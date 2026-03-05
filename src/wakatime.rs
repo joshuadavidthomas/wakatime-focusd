@@ -27,7 +27,19 @@ const ERROR_LOG_RATE_LIMIT: u32 = 10;
 /// Trait for sending heartbeats to `WakaTime`.
 pub trait HeartbeatSender: Send {
     /// Send a heartbeat. Returns Ok(()) on success.
+    ///
+    /// Implementations may buffer the heartbeat for later delivery (see
+    /// [`flush`](Self::flush)).
     fn send_heartbeat<'a>(&'a self, heartbeat: &'a Heartbeat) -> BoxFuture<'a, Result<()>>;
+
+    /// Flush any buffered heartbeats.
+    ///
+    /// Called by the event loop on periodic ticks and before shutdown/reload.
+    /// The default implementation is a no-op (for senders that deliver
+    /// immediately).
+    fn flush(&self) -> BoxFuture<'_, Result<()>> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 /// `WakaTime` CLI client.

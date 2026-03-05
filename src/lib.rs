@@ -1,7 +1,7 @@
 //! wakatime-focusd - Systemd user daemon for `WakaTime` app heartbeats.
 //!
 //! Tracks currently focused desktop application and sends heartbeats to `WakaTime`
-//! using wakatime-cli.
+//! via the API directly or using wakatime-cli.
 
 pub mod api;
 pub mod api_key;
@@ -63,12 +63,18 @@ pub async fn run_event_loop(
     loop {
         tokio::select! {
             () = shutdown.cancelled() => {
-                info!("Shutdown signal received, exiting event loop");
+                info!("Shutdown signal received, flushing buffered heartbeats");
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer on shutdown: {e}");
+                }
                 return EventLoopOutcome::Shutdown;
             }
 
             () = reload.notified() => {
-                info!("Reload signal received, exiting event loop for config reload");
+                info!("Reload signal received, flushing buffered heartbeats");
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer before reload: {e}");
+                }
                 return EventLoopOutcome::Reload;
             }
 
@@ -85,6 +91,9 @@ pub async fn run_event_loop(
                         ).await;
                     }
                     Err(e) => {
+                        if let Err(flush_err) = sender.flush().await {
+                            warn!("Failed to flush heartbeat buffer on source error: {flush_err}");
+                        }
                         return EventLoopOutcome::SourceError(e);
                     }
                 }
@@ -96,20 +105,24 @@ pub async fn run_event_loop(
                 {
                     if idle_monitor.is_idle() {
                         debug!("Skipping periodic heartbeat: session is idle");
-                        continue;
+                    } else {
+                        // Re-send the same heartbeat rather than rebuilding from
+                        // the source event — entity and category haven't changed.
+                        let periodic_heartbeat = last_heartbeat.clone();
+                        debug!(
+                            "Sending periodic heartbeat for: {}",
+                            periodic_heartbeat.entity
+                        );
+                        match sender.send_heartbeat(&periodic_heartbeat).await {
+                            Ok(()) => throttle.record_sent(periodic_heartbeat),
+                            Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
+                        }
                     }
+                }
 
-                    // Re-send the same heartbeat rather than rebuilding from
-                    // the source event — entity and category haven't changed.
-                    let periodic_heartbeat = last_heartbeat.clone();
-                    debug!(
-                        "Sending periodic heartbeat for: {}",
-                        periodic_heartbeat.entity
-                    );
-                    match sender.send_heartbeat(&periodic_heartbeat).await {
-                        Ok(()) => throttle.record_sent(periodic_heartbeat),
-                        Err(e) => warn!("Failed to send periodic heartbeat: {}", e),
-                    }
+                // Flush any buffered heartbeats (no-op for non-batching senders)
+                if let Err(e) = sender.flush().await {
+                    warn!("Failed to flush heartbeat buffer: {e}");
                 }
             }
         }
