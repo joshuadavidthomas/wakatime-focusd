@@ -42,10 +42,6 @@ Rust 1.75+ supports `async fn` in traits natively. You're on edition 2024 — yo
 
 `Category::as_str()` exists but there's no `Display` impl, so you can't use `{}` formatting directly. Minor, but it's the idiomatic Rust pattern.
 
-### `wakatime-cli` output is captured but not logged on success
-
-`stdout` and `stderr` are piped but only stderr is logged on failure. On success, stdout is silently discarded. If wakatime-cli ever emits useful info (rate limit warnings, etc.), it would be lost.
-
 ### Build CI only targets x86_64-unknown-linux-gnu
 
 No cross-compilation for aarch64 (Raspberry Pi, Asahi Linux). Given this is a Linux-only tool, aarch64 is the main missing target.
@@ -73,44 +69,14 @@ This inconsistency could confuse users. Consider supporting regex in allowlist/d
 
 ### Tier 1.5 — Direct WakaTime API integration
 
-Bypass wakatime-cli entirely and POST heartbeats to the WakaTime API directly. This supersedes the previously planned heartbeat batching and offline queue items (which were designed around CLI workarounds) and eliminates the wakatime-cli external dependency.
+Replaced wakatime-cli with direct HTTP API integration. Heartbeats are sent to the WakaTime API (or compatible servers like Wakapi) with batching and an offline queue. The `HeartbeatSender` trait remains the seam between the pipeline and the sender; the full pipeline (focus sources → builder → throttle) was untouched.
 
-**Why now:** The daemon only sends `--entity-type app` heartbeats — it doesn't use wakatime-cli's file analysis, language detection, or git integration. The actual API surface needed is a single JSON POST with ~6 fields and bearer auth. The `HeartbeatSender` trait is the perfect seam; the entire pipeline (focus sources → builder → throttle) stays untouched.
-
-**Implementation plan:**
-
-#### Phase 1: API key reading + config
-
-- [ ] **Read API key from `~/.wakatime.cfg`** — parse the INI file (`[settings]` section, `api_key` key). Use a lightweight approach (hand-parse or `configparser` crate). Support `$WAKATIME_API_KEY` env var as override.
-- [ ] **Add `sender` config field** — `sender = "api"` (new default) or `sender = "cli"` (legacy). Keeps `WakaTimeClient` as a fallback during transition. Add `api_url` field (default: `https://api.wakatime.com/api/v1`) for self-hosted WakaTime instances.
-- [ ] **Update config template** — document the new fields, comment out `wakatime_cli_path` in the template since it's only relevant for `sender = "cli"`.
-
-#### Phase 2: Basic `ApiSender`
-
-- [ ] **Add `reqwest` dependency** — with `rustls-tls` feature (avoids OpenSSL linking, consistent across distros).
-- [ ] **Implement `ApiSender`** — new `HeartbeatSender` impl that POSTs to `POST /api/v1/users/current/heartbeats`. JSON body: `{ "entity", "type": "app", "category", "time", "plugin" }`. Auth: `Authorization: Basic base64(api_key)`. Reuse a single `reqwest::Client` (connection pooling).
-- [ ] **Handle API errors** — 401 (bad key, log once and clearly), 429 (rate limit, respect `Retry-After` header), 5xx (backoff). Reuse the existing rate-limited error logging pattern (`AtomicU32` counter).
-- [ ] **Dry-run support** — log the JSON payload instead of sending, matching existing `WakaTimeClient` dry-run behavior.
-- [ ] **Wire into `main.rs`** — construct `ApiSender` or `WakaTimeClient` based on `config.sender`. Handle reload (reconstruct sender on `SIGHUP`).
-
-#### Phase 3: Heartbeat batching
-
-- [ ] **Buffer heartbeats internally** — `ApiSender` collects heartbeats in an internal buffer instead of POSTing immediately. The `send_heartbeat` trait method adds to the buffer.
-- [ ] **Flush on timer or threshold** — flush the buffer via `POST /api/v1/users/current/heartbeats.bulk` (max 25 per request per API docs) either when the buffer hits a threshold (e.g., 10) or on a configurable timer (e.g., 30s). A background flush task runs alongside the event loop.
-- [ ] **Flush on shutdown** — drain the buffer on graceful shutdown (SIGTERM/SIGINT) so no heartbeats are lost.
-
-#### Phase 4: Offline queue
-
-- [ ] **Persist on failure** — when a flush fails (network down, 5xx), append the batch to a local file (`~/.local/share/wakatime-focusd/queue.jsonl`, one JSON array per line).
-- [ ] **Drain on reconnect** — after a successful flush, check for queued batches and replay them. Process oldest first, respect rate limits.
-- [ ] **Bound the queue** — cap the queue file size (e.g., 10MB / ~50k heartbeats) to prevent unbounded disk growth. Drop oldest entries when full.
-
-#### Phase 5: Remove CLI sender
-
-- [ ] **Remove `WakaTimeClient` and `wakatime.rs`** — the CLI sender is gone. `HeartbeatSender` trait moves to `api.rs`.
-- [ ] **Remove `which` dependency** — no longer needed.
-- [ ] **Remove `SenderBackend` enum, `sender` and `wakatime_cli_path` config fields** — sender is always the direct API.
-- [ ] **Update README** — installation no longer requires wakatime-cli. Just needs an API key in `~/.wakatime.cfg` or `$WAKATIME_API_KEY`.
+- [x] **API key reading** — hand-parsed INI reader for `~/.wakatime.cfg` (`[settings]` section, `api_key` and `api_url` fields). `$WAKATIME_API_KEY` env var takes priority. No new dependencies.
+- [x] **`api_url` config field** — supports self-hosted Wakapi instances. Resolution priority: daemon config → `~/.wakatime.cfg` → default (`https://api.wakatime.com/api`).
+- [x] **`ApiSender`** — `HeartbeatSender` impl that POSTs JSON heartbeats to `/v1/users/current/heartbeats` with Basic auth. Single `reqwest::Client` for connection pooling. Error handling: 401 (clear auth message), 429 (logs `Retry-After`), 4xx/5xx (rate-limited logging). Dry-run logs the JSON payload.
+- [x] **Heartbeat batching** — `send_heartbeat()` buffers heartbeats in memory. Auto-flush at threshold (10) or on periodic timer tick. Bulk endpoint (`/heartbeats.bulk`, max 25/request) for multi-heartbeat flushes, single endpoint for 1. Flush on shutdown, reload, and source error.
+- [x] **Offline queue** — failed flushes persist to `~/.local/share/wakatime-focusd/queue.jsonl` (JSONL, one batch per line). Drained oldest-first (up to 10 batches) after each successful flush and on periodic ticks. Queue bounded at 10 MB; corrupt entries skipped.
+- [x] **Removed CLI sender** — deleted `wakatime.rs`, `WakaTimeClient`, `find_wakatime_cli()`, `which` dependency, `SenderBackend` enum, `sender` and `wakatime_cli_path` config fields. `HeartbeatSender` trait moved to `api.rs`. README updated: requirements list API key (not wakatime-cli), added Wakapi mention, updated troubleshooting.
 
 ### Tier 2 — Valuable additions
 
