@@ -1,0 +1,36 @@
+```console
+$ wakatime-focusd config init --help
+Create a default config file with documentation
+
+Usage: wakatime-focusd config init [OPTIONS]
+
+Options:
+  -o, --output <OUTPUT>
+          Write to this path instead of the default location
+
+      --force
+          Overwrite an existing config file
+
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+```

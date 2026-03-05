@@ -1,0 +1,40 @@
+```console
+$ wakatime-focusd service install --help
+Install the systemd user service.
+
+Generates a service unit file pointing to the current binary and writes it to ~/.config/systemd/user/. Runs `systemctl --user daemon-reload` after installation.
+
+If --config or --backend are provided, the corresponding flags are embedded in the `ExecStart` line of the generated unit file so the daemon uses them when started by systemd.
+
+Usage: wakatime-focusd service install [OPTIONS]
+
+Options:
+      --now
+          Enable and start the service immediately after installing
+
+      --force
+          Overwrite an existing service file
+
+  -c, --config <CONFIG>
+          Path to config file
+
+  -b, --backend <BACKEND>
+          Backend to use for focus detection
+
+          Possible values:
+          - auto:                 Auto-detect the running desktop environment
+          - hyprland:             Hyprland compositor
+          - sway:                 Sway compositor (i3-compatible IPC)
+          - gnome:                GNOME Shell (Mutter)
+          - kde:                  KDE Plasma (`KWin`)
+          - niri:                 Niri compositor
+          - cosmic:               COSMIC desktop
+          - wlr-foreign-toplevel: Generic Wayland via `wlr-foreign-toplevel-management` (River, Wayfire, labwc, etc.)
+          - x11:                  Generic X11 (fallback for any X11 window manager)
+          
+          [default: auto]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+```

@@ -1,0 +1,10 @@
+```console
+$ wakatime-focusd invalid-command
+? 2
+error: unrecognized subcommand 'invalid-command'
+
+Usage: wakatime-focusd [OPTIONS] [COMMAND]
+
+For more information, try '--help'.
+
+```
