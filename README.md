@@ -48,7 +48,7 @@ Pre-built binaries are available for x86_64 and aarch64 Linux on the [GitHub Rel
 If you have [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) installed:
 
 ```bash
-cargo binstall wakatime-focusd
+cargo binstall --git https://github.com/joshuadavidthomas/wakatime-focusd wakatime-focusd
 ```
 
 ### Building from source
